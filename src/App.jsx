@@ -1,9 +1,10 @@
+import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { Provider } from 'react-redux';
 import { store } from './redux/store';
 
-// Import pages (we'll create these next)
+// Import pages
 import HomePage from './pages/home/HomePage';
 import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
