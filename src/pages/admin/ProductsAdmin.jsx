@@ -4,7 +4,7 @@ import { fetchProducts } from '../../redux/slices/productsSlice';
 import { fetchCategories } from '../../redux/slices/categoriesSlice';
 import { createProduct, updateProduct, deleteProduct } from '../../api/admin';
 import Sidebar from '../../components/admin/Sidebar';
-import { Plus, Edit, Trash2, Eye, X, Check, Package } from 'lucide-react';
+import { Plus, Edit, Trash2, X, Package, PlusCircle, MinusCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const ProductsAdmin = () => {
@@ -21,8 +21,10 @@ const ProductsAdmin = () => {
     images: [],
     stock: '',
     isFeatured: false,
+    hasVariants: false,
     variants: []
   });
+  const [newVariant, setNewVariant] = useState({ color: '', size: '', stock: '', price: '' });
 
   useEffect(() => {
     dispatch(fetchProducts());
@@ -45,13 +47,41 @@ const ProductsAdmin = () => {
     });
   };
 
+  const handleVariantInputChange = (e) => {
+    const { name, value } = e.target;
+    setNewVariant({ ...newVariant, [name]: value });
+  };
+
+  const addVariant = () => {
+    if (newVariant.color || newVariant.size) {
+      setFormData({
+        ...formData,
+        variants: [...formData.variants, { 
+          color: newVariant.color || '',
+          size: newVariant.size || '',
+          stock: parseInt(newVariant.stock) || 0,
+          price: parseFloat(newVariant.price) || 0
+        }]
+      });
+      setNewVariant({ color: '', size: '', stock: '', price: '' });
+    } else {
+      toast.error('Please enter at least a color or size');
+    }
+  };
+
+  const removeVariant = (index) => {
+    const updatedVariants = formData.variants.filter((_, i) => i !== index);
+    setFormData({ ...formData, variants: updatedVariants });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
       const productData = {
         ...formData,
         price: parseFloat(formData.price),
-        stock: parseInt(formData.stock) || 0
+        stock: formData.hasVariants ? 0 : parseInt(formData.stock) || 0,
+        variants: formData.hasVariants ? formData.variants : []
       };
 
       if (editingProduct) {
@@ -72,6 +102,7 @@ const ProductsAdmin = () => {
         images: [],
         stock: '',
         isFeatured: false,
+        hasVariants: false,
         variants: []
       });
       dispatch(fetchProducts());
@@ -93,6 +124,7 @@ const ProductsAdmin = () => {
   };
 
   const handleEdit = (product) => {
+    const hasVariants = product.variants && product.variants.length > 0;
     setEditingProduct(product);
     setFormData({
       name: product.name,
@@ -102,9 +134,27 @@ const ProductsAdmin = () => {
       images: product.images || [],
       stock: product.stock || '',
       isFeatured: product.isFeatured || false,
-      variants: product.variants || []
+      hasVariants: hasVariants,
+      variants: hasVariants ? product.variants : []
     });
     setShowModal(true);
+  };
+
+  const getTotalStock = (product) => {
+    if (product.variants && product.variants.length > 0) {
+      return product.variants.reduce((sum, v) => sum + (v.stock || 0), 0);
+    }
+    return product.stock || 0;
+  };
+
+  const getVariantDisplay = (variants) => {
+    if (!variants || variants.length === 0) return 'No variants';
+    const colors = [...new Set(variants.map(v => v.color).filter(Boolean))];
+    const sizes = [...new Set(variants.map(v => v.size).filter(Boolean))];
+    let display = [];
+    if (colors.length) display.push(`${colors.length} color(s)`);
+    if (sizes.length) display.push(`${sizes.length} size(s)`);
+    return display.join(', ') || 'Variants';
   };
 
   return (
@@ -124,6 +174,7 @@ const ProductsAdmin = () => {
                 images: [],
                 stock: '',
                 isFeatured: false,
+                hasVariants: false,
                 variants: []
               });
               setShowModal(true);
@@ -156,6 +207,7 @@ const ProductsAdmin = () => {
                     <th className="px-6 py-3">Price</th>
                     <th className="px-6 py-3">Category</th>
                     <th className="px-6 py-3">Stock</th>
+                    <th className="px-6 py-3">Variants</th>
                     <th className="px-6 py-3">Status</th>
                     <th className="px-6 py-3">Actions</th>
                   </tr>
@@ -180,7 +232,10 @@ const ProductsAdmin = () => {
                         {product.category?.name || 'N/A'}
                       </td>
                       <td className="px-6 py-4 text-gray-600">
-                        {product.stock || product.variants?.reduce((sum, v) => sum + v.stock, 0) || 0}
+                        {getTotalStock(product)}
+                      </td>
+                      <td className="px-6 py-4 text-gray-600 text-sm">
+                        {getVariantDisplay(product.variants)}
                       </td>
                       <td className="px-6 py-4">
                         <span className={`px-2 py-1 text-xs rounded-full ${
@@ -253,7 +308,7 @@ const ProductsAdmin = () => {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Price (KES) *</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Base Price (KES) *</label>
                     <input
                       type="number"
                       name="price"
@@ -262,6 +317,7 @@ const ProductsAdmin = () => {
                       required
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                     />
+                    <p className="text-xs text-gray-500 mt-1">Variant prices can be adjusted below</p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Category *</label>
@@ -294,9 +350,32 @@ const ProductsAdmin = () => {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="flex items-center gap-4">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      name="hasVariants"
+                      checked={formData.hasVariants}
+                      onChange={handleInputChange}
+                      className="w-4 h-4 text-primary-600 focus:ring-primary-500"
+                    />
+                    <span className="text-sm text-gray-700">Product has variants (colors/sizes)</span>
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      name="isFeatured"
+                      checked={formData.isFeatured}
+                      onChange={handleInputChange}
+                      className="w-4 h-4 text-primary-600 focus:ring-primary-500"
+                    />
+                    <span className="text-sm text-gray-700">Featured Product</span>
+                  </label>
+                </div>
+
+                {!formData.hasVariants ? (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Stock</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Stock Quantity</label>
                     <input
                       type="number"
                       name="stock"
@@ -305,19 +384,91 @@ const ProductsAdmin = () => {
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
                     />
                   </div>
-                  <div className="flex items-center">
-                    <label className="flex items-center gap-2">
+                ) : (
+                  <div className="border border-gray-200 rounded-lg p-4">
+                    <h4 className="font-medium text-gray-700 mb-3">Product Variants</h4>
+                    
+                    {/* Add Variant Form */}
+                    <div className="grid grid-cols-4 gap-2 mb-3">
                       <input
-                        type="checkbox"
-                        name="isFeatured"
-                        checked={formData.isFeatured}
-                        onChange={handleInputChange}
-                        className="w-4 h-4 text-primary-600 focus:ring-primary-500"
+                        type="text"
+                        name="color"
+                        value={newVariant.color}
+                        onChange={handleVariantInputChange}
+                        placeholder="Color"
+                        className="px-3 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-primary-500"
                       />
-                      <span className="text-sm text-gray-700">Featured Product</span>
-                    </label>
+                      <input
+                        type="text"
+                        name="size"
+                        value={newVariant.size}
+                        onChange={handleVariantInputChange}
+                        placeholder="Size"
+                        className="px-3 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-primary-500"
+                      />
+                      <input
+                        type="number"
+                        name="stock"
+                        value={newVariant.stock}
+                        onChange={handleVariantInputChange}
+                        placeholder="Stock"
+                        className="px-3 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-primary-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={addVariant}
+                        className="bg-primary-600 text-white px-3 py-1 rounded hover:bg-primary-700 flex items-center justify-center"
+                      >
+                        <PlusCircle className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <input
+                      type="number"
+                      name="price"
+                      value={newVariant.price}
+                      onChange={handleVariantInputChange}
+                      placeholder="Variant Price (KES) - optional"
+                      className="w-full px-3 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-primary-500 mb-2"
+                    />
+
+                    {/* Variants List */}
+                    {formData.variants.length > 0 && (
+                      <div className="space-y-2 max-h-40 overflow-y-auto">
+                        {formData.variants.map((variant, index) => (
+                          <div key={index} className="flex items-center justify-between bg-gray-50 p-2 rounded">
+                            <div className="flex items-center gap-4 flex-wrap">
+                              {variant.color && (
+                                <span className="text-sm">
+                                  <span className="font-medium">Color:</span> {variant.color}
+                                </span>
+                              )}
+                              {variant.size && (
+                                <span className="text-sm">
+                                  <span className="font-medium">Size:</span> {variant.size}
+                                </span>
+                              )}
+                              <span className="text-sm">
+                                <span className="font-medium">Stock:</span> {variant.stock}
+                              </span>
+                              {variant.price > 0 && (
+                                <span className="text-sm font-medium text-primary-600">
+                                  KES {variant.price}
+                                </span>
+                              )}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => removeVariant(index)}
+                              className="text-red-500 hover:text-red-700"
+                            >
+                              <MinusCircle className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                </div>
+                )}
 
                 <div className="flex gap-3 pt-4">
                   <button

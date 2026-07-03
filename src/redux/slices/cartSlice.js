@@ -33,10 +33,7 @@ const cartSlice = createSlice({
         });
       }
 
-      // Save to localStorage
       localStorage.setItem('cart', JSON.stringify(state.items));
-      
-      // Recalculate totals
       calculateTotals(state);
     },
     removeFromCart: (state, action) => {
@@ -56,7 +53,6 @@ const cartSlice = createSlice({
       );
       if (item) {
         if (quantity <= 0) {
-          // Remove item if quantity is 0 or less
           state.items = state.items.filter(
             i => !(i.productId === productId && 
               JSON.stringify(i.selectedVariant) === JSON.stringify(selectedVariant))

@@ -64,6 +64,7 @@ const ShopPage = () => {
   };
 
   const handleAddToCart = (product) => {
+    // Use first variant if available
     const firstVariant = product.variants && product.variants.length > 0 ? product.variants[0] : null;
     dispatch(addToCart({
       productId: product._id,
@@ -91,7 +92,6 @@ const ShopPage = () => {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      {/* Header */}
       <div className="flex justify-between items-center mb-8">
         <div>
           <h1 className="text-3xl font-bold text-gray-800">Shop</h1>
@@ -117,7 +117,6 @@ const ShopPage = () => {
               </button>
             </div>
 
-            {/* Category Filter */}
             <div className="mb-6">
               <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
               <select
@@ -135,7 +134,6 @@ const ShopPage = () => {
               </select>
             </div>
 
-            {/* Price Range */}
             <div className="mb-6">
               <label className="block text-sm font-medium text-gray-700 mb-2">Price Range</label>
               <div className="flex gap-4">
@@ -158,7 +156,6 @@ const ShopPage = () => {
               </div>
             </div>
 
-            {/* Sort */}
             <div className="mb-6">
               <label className="block text-sm font-medium text-gray-700 mb-2">Sort By</label>
               <select
@@ -174,7 +171,6 @@ const ShopPage = () => {
               </select>
             </div>
 
-            {/* Apply Buttons */}
             <div className="flex gap-4">
               <button
                 onClick={applyFilters}
@@ -193,7 +189,6 @@ const ShopPage = () => {
         </div>
       )}
 
-      {/* Loading State */}
       {loading && (
         <div className="text-center py-12">
           <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-primary-600 border-t-transparent"></div>
@@ -201,7 +196,6 @@ const ShopPage = () => {
         </div>
       )}
 
-      {/* Error State */}
       {error && (
         <div className="text-center py-12">
           <p className="text-red-600">{error}</p>
@@ -214,7 +208,6 @@ const ShopPage = () => {
         </div>
       )}
 
-      {/* Products Grid */}
       {!loading && !error && (
         <>
           {products.length === 0 ? (
@@ -272,7 +265,7 @@ const ShopPage = () => {
                     
                     {product.variants && product.variants.length > 0 && (
                       <div className="mt-2 flex flex-wrap gap-1">
-                        {[...new Set(product.variants.map(v => v.color))].slice(0, 3).map((color, idx) => (
+                        {[...new Set(product.variants.map(v => v.color).filter(Boolean))].slice(0, 3).map((color, idx) => (
                           <span
                             key={idx}
                             className="w-4 h-4 rounded-full border border-gray-300"
@@ -291,7 +284,6 @@ const ShopPage = () => {
             </div>
           )}
 
-          {/* Pagination */}
           {pages > 1 && (
             <div className="flex justify-center items-center gap-2 mt-8">
               <button
@@ -301,9 +293,7 @@ const ShopPage = () => {
               >
                 Previous
               </button>
-              <span className="px-4 py-2">
-                Page {page} of {pages}
-              </span>
+              <span className="px-4 py-2">Page {page} of {pages}</span>
               <button
                 onClick={() => handlePageChange(page + 1)}
                 disabled={page === pages}
