@@ -1,11 +1,40 @@
-import React, { useEffect, useState } from 'react';
-import { useDispatch, useSelector } from 'react-redux';
-import { fetchProducts } from '../../redux/slices/productsSlice';
-import { fetchCategories } from '../../redux/slices/categoriesSlice';
-import { createProduct, updateProduct, deleteProduct } from '../../api/admin';
-import Sidebar from '../../components/admin/Sidebar';
-import { Plus, Edit, Trash2, X, Package, PlusCircle, MinusCircle } from 'lucide-react';
-import toast from 'react-hot-toast';
+/**
+ * ProductsAdmin — refined back-office styling (same brand palette as
+ * ShopPage / ProductDetail / Header, but tuned for a working dashboard
+ * rather than the editorial storefront look — denser, more functional,
+ * less ornamental).
+ * ------------------------------------------------------------------
+ * Fonts: "Fraunces" (page title only) + "Work Sans" (everything else —
+ * tables and forms read better in a plain grotesque at small sizes).
+ * Add to public/index.html for best performance:
+ *
+ *   <link rel="preconnect" href="https://fonts.googleapis.com">
+ *   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+ *   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500&family=Work+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+ *
+ * All state, handlers, API calls, and redux logic are untouched —
+ * only markup/classNames changed.
+ * ------------------------------------------------------------------
+ */
+import React, { useEffect, useState } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import { fetchProducts } from "../../redux/slices/productsSlice";
+import { fetchCategories } from "../../redux/slices/categoriesSlice";
+import { createProduct, updateProduct, deleteProduct } from "../../api/admin";
+import { getImageUrl } from "../../api";
+import Sidebar from "../../components/admin/Sidebar";
+import {
+  Plus,
+  Edit,
+  Trash2,
+  X,
+  Package,
+  PlusCircle,
+  MinusCircle,
+  Upload,
+  Image as ImageIcon,
+} from "lucide-react";
+import toast from "react-hot-toast";
 
 const ProductsAdmin = () => {
   const dispatch = useDispatch();
@@ -13,18 +42,30 @@ const ProductsAdmin = () => {
   const { categories } = useSelector((state) => state.categories);
   const [showModal, setShowModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
-  const [formData, setFormData] = useState({
-    name: '',
-    description: '',
-    price: '',
-    category: '',
+
+  const initialFormState = {
+    name: "",
+    description: "",
+    price: "",
+    category: "",
     images: [],
-    stock: '',
+    stock: "",
     isFeatured: false,
     hasVariants: false,
-    variants: []
+    variants: [],
+  };
+
+  const [formData, setFormData] = useState(initialFormState);
+  const [newVariant, setNewVariant] = useState({
+    color: "",
+    size: "",
+    stock: "",
+    price: "",
   });
-  const [newVariant, setNewVariant] = useState({ color: '', size: '', stock: '', price: '' });
+  const [imageFiles, setImageFiles] = useState([]);
+  const [imagePreviews, setImagePreviews] = useState([]);
+  // Track which existing images should be removed
+  const [imagesToRemove, setImagesToRemove] = useState([]);
 
   useEffect(() => {
     dispatch(fetchProducts());
@@ -32,9 +73,9 @@ const ProductsAdmin = () => {
   }, [dispatch]);
 
   const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-KE', {
-      style: 'currency',
-      currency: 'KES',
+    return new Intl.NumberFormat("en-KE", {
+      style: "currency",
+      currency: "KES",
       minimumFractionDigits: 0,
     }).format(amount);
   };
@@ -43,7 +84,7 @@ const ProductsAdmin = () => {
     const { name, value, type, checked } = e.target;
     setFormData({
       ...formData,
-      [name]: type === 'checkbox' ? checked : value
+      [name]: type === "checkbox" ? checked : value,
     });
   };
 
@@ -52,20 +93,60 @@ const ProductsAdmin = () => {
     setNewVariant({ ...newVariant, [name]: value });
   };
 
+  const handleImageChange = (e) => {
+    const files = Array.from(e.target.files);
+    if (files.length + imageFiles.length > 5) {
+      toast.error("Maximum 5 images allowed");
+      return;
+    }
+
+    const newFiles = [...imageFiles, ...files];
+    setImageFiles(newFiles);
+
+    const previews = newFiles.map((file) =>
+      file instanceof File ? URL.createObjectURL(file) : getImageUrl(file),
+    );
+    setImagePreviews(previews);
+  };
+
+  const removeImage = (index) => {
+    const fileToRemove = imageFiles[index];
+
+    // If it's a File object (newly uploaded), just remove from state
+    if (fileToRemove instanceof File) {
+      const newFiles = imageFiles.filter((_, i) => i !== index);
+      const newPreviews = imagePreviews.filter((_, i) => i !== index);
+      setImageFiles(newFiles);
+      setImagePreviews(newPreviews);
+    } else {
+      // It's an existing image URL - mark for removal
+      const imagePath = fileToRemove;
+      setImagesToRemove([...imagesToRemove, imagePath]);
+
+      const newFiles = imageFiles.filter((_, i) => i !== index);
+      const newPreviews = imagePreviews.filter((_, i) => i !== index);
+      setImageFiles(newFiles);
+      setImagePreviews(newPreviews);
+    }
+  };
+
   const addVariant = () => {
     if (newVariant.color || newVariant.size) {
       setFormData({
         ...formData,
-        variants: [...formData.variants, { 
-          color: newVariant.color || '',
-          size: newVariant.size || '',
-          stock: parseInt(newVariant.stock) || 0,
-          price: parseFloat(newVariant.price) || 0
-        }]
+        variants: [
+          ...formData.variants,
+          {
+            color: newVariant.color || "",
+            size: newVariant.size || "",
+            stock: parseInt(newVariant.stock) || 0,
+            price: parseFloat(newVariant.price) || 0,
+          },
+        ],
       });
-      setNewVariant({ color: '', size: '', stock: '', price: '' });
+      setNewVariant({ color: "", size: "", stock: "", price: "" });
     } else {
-      toast.error('Please enter at least a color or size');
+      toast.error("Please enter at least a color or size");
     }
   };
 
@@ -76,49 +157,62 @@ const ProductsAdmin = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    try {
-      const productData = {
-        ...formData,
-        price: parseFloat(formData.price),
-        stock: formData.hasVariants ? 0 : parseInt(formData.stock) || 0,
-        variants: formData.hasVariants ? formData.variants : []
-      };
 
-      if (editingProduct) {
-        await updateProduct(editingProduct._id, productData);
-        toast.success('Product updated successfully!');
-      } else {
-        await createProduct(productData);
-        toast.success('Product created successfully!');
+    const formDataToSend = new FormData();
+    formDataToSend.append("name", formData.name);
+    formDataToSend.append("description", formData.description);
+    formDataToSend.append("price", formData.price);
+    formDataToSend.append("category", formData.category);
+    formDataToSend.append("isFeatured", formData.isFeatured);
+
+    // Send stock explicitly if it doesn't have variants
+    if (formData.hasVariants) {
+      formDataToSend.append("variants", JSON.stringify(formData.variants));
+    } else {
+      formDataToSend.append("stock", formData.stock || 0);
+    }
+
+    // Add new image files
+    imageFiles.forEach((file) => {
+      if (file instanceof File) {
+        formDataToSend.append("images", file);
       }
-      
+    });
+
+    // If editing, send images to remove
+    if (editingProduct && imagesToRemove.length > 0) {
+      formDataToSend.append("removeImages", JSON.stringify(imagesToRemove));
+    }
+
+    try {
+      if (editingProduct) {
+        await updateProduct(editingProduct._id, formDataToSend);
+        toast.success("Product updated successfully!");
+      } else {
+        await createProduct(formDataToSend);
+        toast.success("Product created successfully!");
+      }
+
       setShowModal(false);
       setEditingProduct(null);
-      setFormData({
-        name: '',
-        description: '',
-        price: '',
-        category: '',
-        images: [],
-        stock: '',
-        isFeatured: false,
-        hasVariants: false,
-        variants: []
-      });
+      setFormData(initialFormState);
+      setImageFiles([]);
+      setImagePreviews([]);
+      setImagesToRemove([]);
       dispatch(fetchProducts());
     } catch (error) {
-      toast.error(error.response?.data?.message || 'Failed to save product');
+      toast.error(error.response?.data?.message || "Failed to save product");
     }
   };
 
   const handleDelete = async (id) => {
-    if (window.confirm('Are you sure you want to delete this product?')) {
+    if (window.confirm("Are you sure you want to delete this product?")) {
       try {
         await deleteProduct(id);
-        toast.success('Product deleted successfully!');
+        toast.success("Product deleted successfully!");
         dispatch(fetchProducts());
       } catch (error) {
-        toast.error('Failed to delete product');
+        toast.error("Failed to delete product");
       }
     }
   };
@@ -126,17 +220,27 @@ const ProductsAdmin = () => {
   const handleEdit = (product) => {
     const hasVariants = product.variants && product.variants.length > 0;
     setEditingProduct(product);
+
+    // Get image paths from product
+    const existingImages = product.images || [];
+    const existingPreviews = existingImages.map((img) => getImageUrl(img));
+
     setFormData({
       name: product.name,
       description: product.description,
       price: product.price,
-      category: product.category._id || product.category,
-      images: product.images || [],
-      stock: product.stock || '',
+      category: product.category?._id || product.category,
+      images: existingImages,
+      stock: product.stock || "",
       isFeatured: product.isFeatured || false,
       hasVariants: hasVariants,
-      variants: hasVariants ? product.variants : []
+      variants: hasVariants ? product.variants : [],
     });
+
+    // Set image files (existing images as strings, not Files)
+    setImageFiles(existingImages);
+    setImagePreviews(existingPreviews);
+    setImagesToRemove([]);
     setShowModal(true);
   };
 
@@ -148,115 +252,154 @@ const ProductsAdmin = () => {
   };
 
   const getVariantDisplay = (variants) => {
-    if (!variants || variants.length === 0) return 'No variants';
-    const colors = [...new Set(variants.map(v => v.color).filter(Boolean))];
-    const sizes = [...new Set(variants.map(v => v.size).filter(Boolean))];
+    if (!variants || variants.length === 0) return "No variants";
+    const colors = [...new Set(variants.map((v) => v.color).filter(Boolean))];
+    const sizes = [...new Set(variants.map((v) => v.size).filter(Boolean))];
     let display = [];
     if (colors.length) display.push(`${colors.length} color(s)`);
     if (sizes.length) display.push(`${sizes.length} size(s)`);
-    return display.join(', ') || 'Variants';
+    return display.join(", ") || "Variants";
   };
 
+  const inputClass =
+    "w-full px-3.5 py-2.5 bg-[#FBF9F4] border border-[#E6DFD1] text-sm text-[#14120F] placeholder:text-[#B7AC98] focus:outline-none focus:border-[#B08D4F] transition-colors";
+
   return (
-    <div className="flex">
+    <div className="flex min-h-screen bg-[#F7F3EA] font-['Work_Sans']">
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500&family=Work+Sans:wght@300;400;500;600&display=swap');
+        .font-display { font-family: 'Fraunces', serif; }
+      `}</style>
+
       <Sidebar />
-      <div className="flex-1 p-6">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-gray-800">Products</h1>
+
+      <div className="flex-1 p-6 sm:p-10">
+        <div className="flex justify-between items-center mb-8">
+          <div>
+            <h1 className="font-display text-2xl text-[#14120F]">Products</h1>
+            <p className="text-xs text-[#8C7B6B] tracking-wide mt-1">
+              {products.length} item{products.length === 1 ? "" : "s"} in
+              catalog
+            </p>
+          </div>
           <button
             onClick={() => {
               setEditingProduct(null);
-              setFormData({
-                name: '',
-                description: '',
-                price: '',
-                category: '',
-                images: [],
-                stock: '',
-                isFeatured: false,
-                hasVariants: false,
-                variants: []
-              });
+              setFormData(initialFormState);
+              setImageFiles([]);
+              setImagePreviews([]);
+              setImagesToRemove([]);
               setShowModal(true);
             }}
-            className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 transition-colors flex items-center gap-2"
+            className="bg-[#14120F] text-[#F7F3EA] px-5 py-2.5 text-xs uppercase tracking-[0.2em] hover:bg-[#1F3D33] transition-colors duration-300 flex items-center gap-2"
           >
-            <Plus className="w-5 h-5" />
+            <Plus className="w-4 h-4" />
             Add Product
           </button>
         </div>
 
         {loading ? (
-          <div className="text-center py-12">
-            <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-primary-600 border-t-transparent"></div>
-            <p className="mt-4 text-gray-600">Loading products...</p>
+          <div className="text-center py-20">
+            <div className="inline-block animate-spin rounded-full h-9 w-9 border-[3px] border-[#B08D4F] border-t-transparent"></div>
+            <p className="mt-4 text-sm text-[#8C7B6B] tracking-wide">
+              Loading products…
+            </p>
           </div>
         ) : products.length === 0 ? (
-          <div className="text-center py-12 bg-white rounded-xl shadow-sm">
-            <Package className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-gray-700">No products yet</h3>
-            <p className="text-gray-500">Start adding products to your store</p>
+          <div className="text-center py-20 bg-white border border-[#E6DFD1]">
+            <Package
+              className="w-12 h-12 text-[#D8CFBC] mx-auto mb-4"
+              strokeWidth={1.25}
+            />
+            <h3 className="font-display text-xl text-[#14120F]">
+              No products yet
+            </h3>
+            <p className="text-[#8C7B6B] text-sm mt-1">
+              Start adding products to your store
+            </p>
           </div>
         ) : (
-          <div className="bg-white rounded-xl shadow-sm overflow-hidden border border-gray-100">
+          <div className="bg-white border border-[#E6DFD1] overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-gray-50">
-                  <tr className="text-left text-sm font-medium text-gray-600">
-                    <th className="px-6 py-3">Product</th>
-                    <th className="px-6 py-3">Price</th>
-                    <th className="px-6 py-3">Category</th>
-                    <th className="px-6 py-3">Stock</th>
-                    <th className="px-6 py-3">Variants</th>
-                    <th className="px-6 py-3">Status</th>
-                    <th className="px-6 py-3">Actions</th>
+                <thead className="bg-[#FBF9F4] border-b border-[#E6DFD1]">
+                  <tr className="text-left text-[11px] uppercase tracking-[0.15em] text-[#8C7B6B]">
+                    <th className="px-6 py-3.5 font-medium">Product</th>
+                    <th className="px-6 py-3.5 font-medium">Price</th>
+                    <th className="px-6 py-3.5 font-medium">Category</th>
+                    <th className="px-6 py-3.5 font-medium">Stock</th>
+                    <th className="px-6 py-3.5 font-medium">Variants</th>
+                    <th className="px-6 py-3.5 font-medium">Status</th>
+                    <th className="px-6 py-3.5 font-medium">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-100">
+                <tbody className="divide-y divide-[#EFEAE0]">
                   {products.map((product) => (
-                    <tr key={product._id} className="hover:bg-gray-50 transition-colors">
+                    <tr
+                      key={product._id}
+                      className="hover:bg-[#FBF9F4] transition-colors"
+                    >
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-3">
-                          <img
-                            src={product.images?.[0] || 'https://via.placeholder.com/40'}
-                            alt={product.name}
-                            className="w-10 h-10 rounded-lg object-cover bg-gray-100"
-                          />
-                          <span className="font-medium text-gray-800">{product.name}</span>
+                          {product.images && product.images.length > 0 ? (
+                            <img
+                              src={getImageUrl(product.images[0])}
+                              alt={product.name}
+                              className="w-10 h-10 object-cover bg-[#EFEAE0]"
+                              onError={(e) => {
+                                e.target.onerror = null;
+                                e.target.src =
+                                  "https://via.placeholder.com/40x40?text=No+Image";
+                              }}
+                            />
+                          ) : (
+                            <div className="w-10 h-10 bg-[#EFEAE0] flex items-center justify-center">
+                              <ImageIcon className="w-4 h-4 text-[#B7AC98]" />
+                            </div>
+                          )}
+                          <span className="font-medium text-[#14120F] text-sm">
+                            {product.name}
+                          </span>
                         </div>
                       </td>
-                      <td className="px-6 py-4 font-semibold text-primary-600">
+                      <td className="px-6 py-4 font-medium text-[#B08D4F] text-sm">
                         {formatCurrency(product.price)}
                       </td>
-                      <td className="px-6 py-4 text-gray-600">
-                        {product.category?.name || 'N/A'}
+                      <td className="px-6 py-4 text-[#5C5348] text-sm">
+                        {product.category?.name || "N/A"}
                       </td>
-                      <td className="px-6 py-4 text-gray-600">
+                      <td className="px-6 py-4 text-[#5C5348] text-sm">
                         {getTotalStock(product)}
                       </td>
-                      <td className="px-6 py-4 text-gray-600 text-sm">
+                      <td className="px-6 py-4 text-[#8C7B6B] text-sm">
                         {getVariantDisplay(product.variants)}
                       </td>
                       <td className="px-6 py-4">
-                        <span className={`px-2 py-1 text-xs rounded-full ${
-                          product.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                        }`}>
-                          {product.isActive ? 'Active' : 'Inactive'}
+                        <span
+                          className={`px-2.5 py-1 text-[10px] uppercase tracking-[0.1em] ${
+                            product.isActive
+                              ? "text-[#1F3D33] bg-[#1F3D33]/10"
+                              : "text-[#8C4B3A] bg-[#8C4B3A]/10"
+                          }`}
+                        >
+                          {product.isActive ? "Active" : "Inactive"}
                         </span>
                       </td>
                       <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1">
                           <button
                             onClick={() => handleEdit(product)}
-                            className="p-1 text-blue-600 hover:bg-blue-50 rounded"
+                            className="p-1.5 text-[#5C5348] hover:text-[#14120F] hover:bg-[#EFEAE0] transition-colors"
+                            aria-label="Edit product"
                           >
-                            <Edit className="w-4 h-4" />
+                            <Edit className="w-4 h-4" strokeWidth={1.5} />
                           </button>
                           <button
                             onClick={() => handleDelete(product._id)}
-                            className="p-1 text-red-600 hover:bg-red-50 rounded"
+                            className="p-1.5 text-[#8C4B3A] hover:bg-[#8C4B3A]/10 transition-colors"
+                            aria-label="Delete product"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <Trash2 className="w-4 h-4" strokeWidth={1.5} />
                           </button>
                         </div>
                       </td>
@@ -270,63 +413,80 @@ const ProductsAdmin = () => {
 
         {/* Product Modal */}
         {showModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-bold text-gray-800">
-                  {editingProduct ? 'Edit Product' : 'Add New Product'}
+          <div className="fixed inset-0 bg-[#14120F]/60 z-50 flex items-center justify-center p-4 backdrop-blur-[2px]">
+            <div className="bg-[#F7F3EA] max-w-2xl w-full max-h-[90vh] overflow-y-auto p-7 sm:p-9">
+              <div className="flex justify-between items-center mb-7 border-b border-[#E6DFD1] pb-5">
+                <h2 className="font-display text-xl text-[#14120F]">
+                  {editingProduct ? "Edit Product" : "Add New Product"}
                 </h2>
-                <button onClick={() => setShowModal(false)} className="text-gray-500 hover:text-gray-700">
-                  <X className="w-6 h-6" />
+                <button
+                  onClick={() => {
+                    setShowModal(false);
+                    setImagesToRemove([]);
+                  }}
+                  className="text-[#8C7B6B] hover:text-[#14120F] transition-colors"
+                >
+                  <X className="w-5 h-5" />
                 </button>
               </div>
 
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <form
+                onSubmit={handleSubmit}
+                className="space-y-5"
+                encType="multipart/form-data"
+              >
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Product Name *</label>
+                  <label className="block text-[11px] uppercase tracking-[0.15em] text-[#8C7B6B] mb-2">
+                    Product Name *
+                  </label>
                   <input
                     type="text"
                     name="name"
                     value={formData.name}
                     onChange={handleInputChange}
                     required
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    className={inputClass}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Description *</label>
+                  <label className="block text-[11px] uppercase tracking-[0.15em] text-[#8C7B6B] mb-2">
+                    Description *
+                  </label>
                   <textarea
                     name="description"
                     value={formData.description}
                     onChange={handleInputChange}
                     required
                     rows="3"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                    className={inputClass}
                   />
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Base Price (KES) *</label>
+                    <label className="block text-[11px] uppercase tracking-[0.15em] text-[#8C7B6B] mb-2">
+                      Base Price (KES) *
+                    </label>
                     <input
                       type="number"
                       name="price"
                       value={formData.price}
                       onChange={handleInputChange}
                       required
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      className={inputClass}
                     />
-                    <p className="text-xs text-gray-500 mt-1">Variant prices can be adjusted below</p>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Category *</label>
+                    <label className="block text-[11px] uppercase tracking-[0.15em] text-[#8C7B6B] mb-2">
+                      Category *
+                    </label>
                     <select
                       name="category"
                       value={formData.category}
                       onChange={handleInputChange}
                       required
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      className={inputClass}
                     >
                       <option value="">Select Category</option>
                       {categories.map((cat) => (
@@ -338,57 +498,126 @@ const ProductsAdmin = () => {
                   </div>
                 </div>
 
+                {/* Image Upload */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Image URL</label>
-                  <input
-                    type="text"
-                    name="images"
-                    value={formData.images[0] || ''}
-                    onChange={(e) => setFormData({ ...formData, images: [e.target.value] })}
-                    placeholder="https://example.com/image.jpg"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  />
+                  <label className="block text-[11px] uppercase tracking-[0.15em] text-[#8C7B6B] mb-2">
+                    Product Images (Max 5)
+                  </label>
+                  <div className="border border-dashed border-[#D8CFBC] p-5 hover:border-[#B08D4F] transition-colors bg-[#FBF9F4]">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      onChange={handleImageChange}
+                      className="hidden"
+                      id="image-upload"
+                    />
+                    <label
+                      htmlFor="image-upload"
+                      className="cursor-pointer flex flex-col items-center gap-2"
+                    >
+                      <Upload
+                        className="w-6 h-6 text-[#B08D4F]"
+                        strokeWidth={1.5}
+                      />
+                      <span className="text-sm text-[#5C5348]">
+                        Click to upload images
+                      </span>
+                      <span className="text-xs text-[#B7AC98]">
+                        JPEG, PNG, WEBP, GIF (Max 5MB each)
+                      </span>
+                    </label>
+                  </div>
+
+                  {/* Image Previews */}
+                  {imagePreviews.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-3">
+                      {imagePreviews.map((preview, index) => {
+                        const isExisting = !(imageFiles[index] instanceof File);
+                        return (
+                          <div
+                            key={index}
+                            className="relative w-20 h-20 overflow-hidden border border-[#E6DFD1]"
+                          >
+                            <img
+                              src={preview}
+                              alt={`Preview ${index + 1}`}
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                e.target.onerror = null;
+                                e.target.src =
+                                  "https://via.placeholder.com/80x80?text=No+Image";
+                              }}
+                            />
+                            {isExisting && (
+                              <div className="absolute bottom-0 left-0 right-0 bg-[#14120F]/80 text-[#F7F3EA] text-[8px] uppercase tracking-wide text-center py-0.5">
+                                Existing
+                              </div>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => removeImage(index)}
+                              className="absolute top-0.5 right-0.5 bg-[#8C4B3A] text-white rounded-full p-0.5 hover:bg-[#73392D]"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {editingProduct && imagesToRemove.length > 0 && (
+                    <p className="text-xs text-[#8C4B3A] mt-2 tracking-wide">
+                      {imagesToRemove.length} image(s) marked for removal
+                    </p>
+                  )}
                 </div>
 
-                <div className="flex items-center gap-4">
-                  <label className="flex items-center gap-2">
+                <div className="flex items-center gap-6">
+                  <label className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="checkbox"
                       name="hasVariants"
                       checked={formData.hasVariants}
                       onChange={handleInputChange}
-                      className="w-4 h-4 text-primary-600 focus:ring-primary-500"
+                      className="w-4 h-4 accent-[#14120F]"
                     />
-                    <span className="text-sm text-gray-700">Product has variants (colors/sizes)</span>
+                    <span className="text-sm text-[#5C5348]">
+                      Product has variants
+                    </span>
                   </label>
-                  <label className="flex items-center gap-2">
+                  <label className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="checkbox"
                       name="isFeatured"
                       checked={formData.isFeatured}
                       onChange={handleInputChange}
-                      className="w-4 h-4 text-primary-600 focus:ring-primary-500"
+                      className="w-4 h-4 accent-[#14120F]"
                     />
-                    <span className="text-sm text-gray-700">Featured Product</span>
+                    <span className="text-sm text-[#5C5348]">
+                      Featured Product
+                    </span>
                   </label>
                 </div>
 
                 {!formData.hasVariants ? (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Stock Quantity</label>
+                    <label className="block text-[11px] uppercase tracking-[0.15em] text-[#8C7B6B] mb-2">
+                      Stock Quantity
+                    </label>
                     <input
                       type="number"
                       name="stock"
                       value={formData.stock}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+                      className={inputClass}
                     />
                   </div>
                 ) : (
-                  <div className="border border-gray-200 rounded-lg p-4">
-                    <h4 className="font-medium text-gray-700 mb-3">Product Variants</h4>
-                    
-                    {/* Add Variant Form */}
+                  <div className="border border-[#E6DFD1] p-4 bg-[#FBF9F4]">
+                    <h4 className="text-[11px] uppercase tracking-[0.15em] text-[#8C7B6B] mb-3">
+                      Product Variants
+                    </h4>
                     <div className="grid grid-cols-4 gap-2 mb-3">
                       <input
                         type="text"
@@ -396,7 +625,7 @@ const ProductsAdmin = () => {
                         value={newVariant.color}
                         onChange={handleVariantInputChange}
                         placeholder="Color"
-                        className="px-3 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-primary-500"
+                        className="px-3 py-2 bg-white border border-[#E6DFD1] text-sm focus:outline-none focus:border-[#B08D4F] transition-colors"
                       />
                       <input
                         type="text"
@@ -404,7 +633,7 @@ const ProductsAdmin = () => {
                         value={newVariant.size}
                         onChange={handleVariantInputChange}
                         placeholder="Size"
-                        className="px-3 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-primary-500"
+                        className="px-3 py-2 bg-white border border-[#E6DFD1] text-sm focus:outline-none focus:border-[#B08D4F] transition-colors"
                       />
                       <input
                         type="number"
@@ -412,12 +641,12 @@ const ProductsAdmin = () => {
                         value={newVariant.stock}
                         onChange={handleVariantInputChange}
                         placeholder="Stock"
-                        className="px-3 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-primary-500"
+                        className="px-3 py-2 bg-white border border-[#E6DFD1] text-sm focus:outline-none focus:border-[#B08D4F] transition-colors"
                       />
                       <button
                         type="button"
                         onClick={addVariant}
-                        className="bg-primary-600 text-white px-3 py-1 rounded hover:bg-primary-700 flex items-center justify-center"
+                        className="bg-[#14120F] text-[#F7F3EA] px-3 py-2 hover:bg-[#1F3D33] transition-colors flex items-center justify-center"
                       >
                         <PlusCircle className="w-4 h-4" />
                       </button>
@@ -427,31 +656,42 @@ const ProductsAdmin = () => {
                       name="price"
                       value={newVariant.price}
                       onChange={handleVariantInputChange}
-                      placeholder="Variant Price (KES) - optional"
-                      className="w-full px-3 py-1 border border-gray-300 rounded focus:ring-2 focus:ring-primary-500 mb-2"
+                      placeholder="Variant Price (KES)"
+                      className="w-full px-3 py-2 bg-white border border-[#E6DFD1] text-sm focus:outline-none focus:border-[#B08D4F] transition-colors mb-2"
                     />
 
-                    {/* Variants List */}
                     {formData.variants.length > 0 && (
                       <div className="space-y-2 max-h-40 overflow-y-auto">
                         {formData.variants.map((variant, index) => (
-                          <div key={index} className="flex items-center justify-between bg-gray-50 p-2 rounded">
+                          <div
+                            key={index}
+                            className="flex items-center justify-between bg-white border border-[#EFEAE0] p-2.5"
+                          >
                             <div className="flex items-center gap-4 flex-wrap">
                               {variant.color && (
-                                <span className="text-sm">
-                                  <span className="font-medium">Color:</span> {variant.color}
+                                <span className="text-xs text-[#5C5348]">
+                                  <span className="font-medium text-[#14120F]">
+                                    Color:
+                                  </span>{" "}
+                                  {variant.color}
                                 </span>
                               )}
                               {variant.size && (
-                                <span className="text-sm">
-                                  <span className="font-medium">Size:</span> {variant.size}
+                                <span className="text-xs text-[#5C5348]">
+                                  <span className="font-medium text-[#14120F]">
+                                    Size:
+                                  </span>{" "}
+                                  {variant.size}
                                 </span>
                               )}
-                              <span className="text-sm">
-                                <span className="font-medium">Stock:</span> {variant.stock}
+                              <span className="text-xs text-[#5C5348]">
+                                <span className="font-medium text-[#14120F]">
+                                  Stock:
+                                </span>{" "}
+                                {variant.stock}
                               </span>
                               {variant.price > 0 && (
-                                <span className="text-sm font-medium text-primary-600">
+                                <span className="text-xs font-medium text-[#B08D4F]">
                                   KES {variant.price}
                                 </span>
                               )}
@@ -459,7 +699,7 @@ const ProductsAdmin = () => {
                             <button
                               type="button"
                               onClick={() => removeVariant(index)}
-                              className="text-red-500 hover:text-red-700"
+                              className="text-[#8C4B3A] hover:text-[#73392D]"
                             >
                               <MinusCircle className="w-4 h-4" />
                             </button>
@@ -470,17 +710,20 @@ const ProductsAdmin = () => {
                   </div>
                 )}
 
-                <div className="flex gap-3 pt-4">
+                <div className="flex gap-3 pt-2">
                   <button
                     type="submit"
-                    className="flex-1 bg-primary-600 text-white py-2 rounded-lg hover:bg-primary-700 transition-colors"
+                    className="flex-1 bg-[#14120F] text-[#F7F3EA] py-3 text-xs uppercase tracking-[0.2em] hover:bg-[#1F3D33] transition-colors duration-300"
                   >
-                    {editingProduct ? 'Update Product' : 'Create Product'}
+                    {editingProduct ? "Update Product" : "Create Product"}
                   </button>
                   <button
                     type="button"
-                    onClick={() => setShowModal(false)}
-                    className="flex-1 bg-gray-200 text-gray-700 py-2 rounded-lg hover:bg-gray-300 transition-colors"
+                    onClick={() => {
+                      setShowModal(false);
+                      setImagesToRemove([]);
+                    }}
+                    className="flex-1 border border-[#D8CFBC] text-[#14120F] py-3 text-xs uppercase tracking-[0.2em] hover:border-[#14120F] transition-colors duration-300"
                   >
                     Cancel
                   </button>

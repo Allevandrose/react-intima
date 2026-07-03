@@ -1,9 +1,25 @@
-import React from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { useSelector, useDispatch } from 'react-redux';
-import { logout } from '../../redux/slices/authSlice';
-import { ShoppingCart, LogOut, Heart } from 'lucide-react';
-import toast from 'react-hot-toast';
+/**
+ * Header — luxury boutique redesign (matches ShopPage / ProductDetail)
+ * ------------------------------------------------------------------
+ * Fonts: "Fraunces" (display serif, used for the wordmark) + "Work Sans"
+ * (nav/body). Add to public/index.html for best performance:
+ *
+ *   <link rel="preconnect" href="https://fonts.googleapis.com">
+ *   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+ *   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;0,9..144,600;1,9..144,400&family=Work+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+ *
+ * All auth/cart logic (redux selectors, logout dispatch, navigation)
+ * is untouched — only markup/classNames changed. The heart mark was
+ * kept but recolored/restyled rather than removed, since it's your
+ * existing brand mark — swap the icon out if you'd like something else.
+ * ------------------------------------------------------------------
+ */
+import React from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { useSelector, useDispatch } from "react-redux";
+import { logout } from "../../redux/slices/authSlice";
+import { ShoppingCart, LogOut, Heart } from "lucide-react";
+import toast from "react-hot-toast";
 
 const Header = () => {
   const { isAuthenticated, user } = useSelector((state) => state.auth);
@@ -13,33 +29,52 @@ const Header = () => {
 
   const handleLogout = () => {
     dispatch(logout());
-    toast.success('Logged out successfully');
-    navigate('/');
+    toast.success("Logged out successfully");
+    navigate("/");
   };
 
   return (
-    <header className="bg-white shadow-sm sticky top-0 z-50">
-      <div className="container mx-auto px-4">
-        <div className="flex justify-between items-center h-16">
+    <header className="bg-[#F7F3EA]/95 backdrop-blur-sm sticky top-0 z-50 border-b border-[#E6DFD1] font-['Work_Sans']">
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;0,9..144,600;1,9..144,400&family=Work+Sans:wght@300;400;500;600&display=swap');
+        .font-display { font-family: 'Fraunces', serif; }
+      `}</style>
+
+      <div className="max-w-7xl mx-auto px-5 sm:px-8">
+        <div className="flex justify-between items-center h-20">
           {/* Logo */}
-          <Link to="/" className="flex items-center space-x-2">
-            <Heart className="w-8 h-8 text-primary-600" />
-            <span className="text-2xl font-bold text-primary-700">IntimaCare</span>
+          <Link to="/" className="flex items-center gap-2.5 group">
+            <Heart
+              className="w-5 h-5 text-[#B08D4F] transition-transform duration-300 group-hover:scale-110"
+              strokeWidth={1.5}
+            />
+            <span className="font-display text-xl tracking-wide text-[#14120F]">
+              IntimaCare
+            </span>
           </Link>
 
           {/* Navigation */}
-          <nav className="flex items-center space-x-6">
-            <Link to="/shop" className="text-gray-600 hover:text-primary-600 transition-colors">
+          <nav className="flex items-center gap-7 sm:gap-9">
+            <Link
+              to="/shop"
+              className="hidden sm:inline text-xs uppercase tracking-[0.2em] text-[#5C5348] hover:text-[#14120F] transition-colors"
+            >
               Shop
             </Link>
 
             {isAuthenticated ? (
               <>
-                <Link to="/orders" className="text-gray-600 hover:text-primary-600 transition-colors">
+                <Link
+                  to="/orders"
+                  className="hidden sm:inline text-xs uppercase tracking-[0.2em] text-[#5C5348] hover:text-[#14120F] transition-colors"
+                >
                   Orders
                 </Link>
-                {user?.role === 'admin' && (
-                  <Link to="/admin" className="text-gray-600 hover:text-primary-600 transition-colors">
+                {user?.role === "admin" && (
+                  <Link
+                    to="/admin"
+                    className="hidden sm:inline text-xs uppercase tracking-[0.2em] text-[#5C5348] hover:text-[#14120F] transition-colors"
+                  >
                     Admin
                   </Link>
                 )}
@@ -47,10 +82,13 @@ const Header = () => {
             ) : null}
 
             {/* Cart */}
-            <Link to="/cart" className="relative text-gray-600 hover:text-primary-600 transition-colors">
-              <ShoppingCart className="w-6 h-6" />
+            <Link
+              to="/cart"
+              className="relative text-[#14120F] hover:text-[#B08D4F] transition-colors"
+            >
+              <ShoppingCart className="w-5 h-5" strokeWidth={1.5} />
               {totalItems > 0 && (
-                <span className="absolute -top-2 -right-2 bg-primary-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                <span className="absolute -top-2 -right-2.5 bg-[#B08D4F] text-[#F7F3EA] text-[10px] font-medium rounded-full w-4.5 h-4.5 min-w-[18px] min-h-[18px] flex items-center justify-center">
                   {totalItems}
                 </span>
               )}
@@ -58,28 +96,29 @@ const Header = () => {
 
             {/* Auth */}
             {isAuthenticated ? (
-              <div className="flex items-center space-x-4">
-                <span className="text-sm text-gray-600 hidden md:inline">
+              <div className="flex items-center gap-4">
+                <span className="text-xs text-[#8C7B6B] tracking-wide hidden md:inline">
                   {user?.email}
                 </span>
                 <button
                   onClick={handleLogout}
-                  className="flex items-center text-gray-600 hover:text-primary-600 transition-colors"
+                  className="flex items-center text-[#5C5348] hover:text-[#14120F] transition-colors"
+                  aria-label="Log out"
                 >
-                  <LogOut className="w-5 h-5" />
+                  <LogOut className="w-4.5 h-4.5" strokeWidth={1.5} />
                 </button>
               </div>
             ) : (
-              <div className="flex items-center space-x-3">
-                <Link 
-                  to="/login" 
-                  className="text-gray-600 hover:text-primary-600 transition-colors"
+              <div className="flex items-center gap-5">
+                <Link
+                  to="/login"
+                  className="text-xs uppercase tracking-[0.2em] text-[#5C5348] hover:text-[#14120F] transition-colors"
                 >
                   Login
                 </Link>
-                <Link 
-                  to="/register" 
-                  className="bg-primary-600 text-white px-4 py-2 rounded-lg hover:bg-primary-700 transition-colors"
+                <Link
+                  to="/register"
+                  className="border border-[#14120F] text-[#14120F] px-5 py-2.5 text-xs uppercase tracking-[0.2em] hover:bg-[#14120F] hover:text-[#F7F3EA] transition-colors duration-300"
                 >
                   Register
                 </Link>
