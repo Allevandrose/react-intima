@@ -1,31 +1,41 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
-import { useDispatch } from 'react-redux';
-import { addToCart } from '../../redux/slices/cartSlice';
-import { ShoppingBag } from 'lucide-react';
-import toast from 'react-hot-toast';
+import React from "react";
+import { Link } from "react-router-dom";
+import { useDispatch } from "react-redux";
+import { addToCart } from "../../redux/slices/cartSlice";
+import { ShoppingBag } from "lucide-react";
+import toast from "react-hot-toast";
+import { getImageUrl } from "../../api";
 
 const ProductCard = ({ product }) => {
   const dispatch = useDispatch();
 
   const formatCurrency = (amount) => {
-    return new Intl.NumberFormat('en-KE', {
-      style: 'currency',
-      currency: 'KES',
+    return new Intl.NumberFormat("en-KE", {
+      style: "currency",
+      currency: "KES",
       minimumFractionDigits: 0,
     }).format(amount);
   };
 
   const handleAddToCart = () => {
-    const firstVariant = product.variants && product.variants.length > 0 ? product.variants[0] : null;
-    dispatch(addToCart({
-      productId: product._id,
-      quantity: 1,
-      selectedVariant: firstVariant ? { color: firstVariant.color, size: firstVariant.size } : null,
-      price: product.price,
-      name: product.name,
-    }));
-    toast.success('Added to cart!');
+    // Get first variant if available
+    const firstVariant =
+      product.variants && product.variants.length > 0
+        ? {
+            size: product.variants[0].size || "",
+            color: product.variants[0].color || "",
+            priceAdjustment: product.variants[0].price || 0,
+          }
+        : null;
+
+    dispatch(
+      addToCart({
+        productId: product._id,
+        quantity: 1,
+        selectedVariant: firstVariant,
+      }),
+    );
+    toast.success("Added to cart!");
   };
 
   return (
@@ -34,11 +44,12 @@ const ProductCard = ({ product }) => {
         <div className="relative h-64 bg-gray-100">
           {product.images && product.images.length > 0 ? (
             <img
-              src={product.images[0]}
+              src={getImageUrl(product.images[0])}
               alt={product.name}
               className="w-full h-full object-cover"
               onError={(e) => {
-                e.target.src = 'https://via.placeholder.com/400x400?text=No+Image';
+                e.target.src =
+                  "https://via.placeholder.com/400x400?text=No+Image";
               }}
             />
           ) : (
@@ -53,14 +64,14 @@ const ProductCard = ({ product }) => {
           )}
         </div>
       </Link>
-      
+
       <div className="p-4">
         <Link to={`/product/${product.slug}`}>
           <h3 className="font-semibold text-gray-800 hover:text-primary-600 transition-colors line-clamp-2">
             {product.name}
           </h3>
         </Link>
-        
+
         <div className="flex items-center justify-between mt-2">
           <span className="text-xl font-bold text-primary-600">
             {formatCurrency(product.price)}
@@ -72,19 +83,23 @@ const ProductCard = ({ product }) => {
             <ShoppingBag className="w-5 h-5" />
           </button>
         </div>
-        
+
         {product.variants && product.variants.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1">
-            {[...new Set(product.variants.map(v => v.color))].slice(0, 3).map((color, idx) => (
-              <span
-                key={idx}
-                className="w-4 h-4 rounded-full border border-gray-300"
-                style={{ backgroundColor: color.toLowerCase() }}
-                title={color}
-              />
-            ))}
+            {[...new Set(product.variants.map((v) => v.color))]
+              .slice(0, 3)
+              .map((color, idx) => (
+                <span
+                  key={idx}
+                  className="w-4 h-4 rounded-full border border-gray-300"
+                  style={{ backgroundColor: color.toLowerCase() }}
+                  title={color}
+                />
+              ))}
             {product.variants.length > 3 && (
-              <span className="text-xs text-gray-500">+{product.variants.length - 3}</span>
+              <span className="text-xs text-gray-500">
+                +{product.variants.length - 3}
+              </span>
             )}
           </div>
         )}

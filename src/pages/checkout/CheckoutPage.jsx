@@ -1,16 +1,5 @@
 /**
- * CheckoutPage — luxury boutique redesign (matches CartPage / ShopPage / ProductDetail / Header)
- * ------------------------------------------------------------------
- * Fonts: "Fraunces" (display serif) + "Work Sans" (body/UI).
- * Add to public/index.html for best performance:
- *
- *   <link rel="preconnect" href="https://fonts.googleapis.com">
- *   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
- *   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;0,9..144,600;1,9..144,400&family=Work+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
- *
- * All checkout logic (redux thunks, form validation, effects, submit
- * handler) is untouched — only markup/classNames changed.
- * ------------------------------------------------------------------
+ * CheckoutPage — luxury boutique redesign
  */
 import React, { useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
@@ -20,16 +9,27 @@ import {
   initiatePaymentThunk,
   clearCurrentOrder,
 } from "../../redux/slices/ordersSlice";
-import { clearCart } from "../../redux/slices/cartSlice";
 import { Shield, Truck, CreditCard, ArrowLeft, Loader } from "lucide-react";
 import toast from "react-hot-toast";
+
+// ✅ Import selectors from cartSlice
+import {
+  selectCartItems,
+  selectSubtotal,
+  selectShipping,
+  selectTotal,
+} from "../../redux/slices/cartSlice";
 
 const CheckoutPage = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const { items, subtotal, shipping, total } = useSelector(
-    (state) => state.cart,
-  );
+
+  // ✅ Use selectors to get cart data
+  const items = useSelector(selectCartItems) || [];
+  const subtotal = useSelector(selectSubtotal) || 0;
+  const shipping = useSelector(selectShipping) || 0;
+  const total = useSelector(selectTotal) || 0;
+
   const { isAuthenticated, user } = useSelector((state) => state.auth);
   const { loading, paymentUrl, currentOrder } = useSelector(
     (state) => state.orders,
@@ -75,6 +75,9 @@ const CheckoutPage = () => {
   }, [currentOrder, loading, paymentUrl, dispatch]);
 
   const formatCurrency = (amount) => {
+    if (!amount || isNaN(amount) || amount === 0) {
+      return "Ksh 0";
+    }
     return new Intl.NumberFormat("en-KE", {
       style: "currency",
       currency: "KES",
@@ -102,6 +105,7 @@ const CheckoutPage = () => {
     return Object.keys(newErrors).length === 0;
   };
 
+  // ✅ Fully implemented submission logic with variant handling and debug logging
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -116,12 +120,37 @@ const CheckoutPage = () => {
       return;
     }
 
+    // ✅ Filter valid items
+    const validItems = items.filter((item) => item.productId);
+    if (validItems.length === 0) {
+      toast.error("No valid items in cart");
+      console.error("❌ Invalid items snapshot:", items);
+      return;
+    }
+
+    // ✅ Build order data with precise conditional variant handling
     const orderData = {
-      items: items.map((item) => ({
-        productId: item.productId,
-        quantity: item.quantity,
-        selectedVariant: item.selectedVariant || null,
-      })),
+      items: validItems.map((item) => {
+        const hasVariant =
+          item.selectedVariant?.size || item.selectedVariant?.color;
+
+        // Base structure mapping
+        const itemData = {
+          productId: item.productId,
+          quantity: item.quantity,
+        };
+
+        // Only explicitly construct and attach selectedVariant if properties exist
+        if (hasVariant) {
+          itemData.selectedVariant = {
+            size: item.selectedVariant.size || "",
+            color: item.selectedVariant.color || "",
+            priceAdjustment: item.selectedVariant.priceAdjustment || 0,
+          };
+        }
+
+        return itemData;
+      }),
       shippingAddress: {
         street: formData.street,
         city: formData.city,
@@ -132,7 +161,14 @@ const CheckoutPage = () => {
       notes: formData.notes,
     };
 
+    // ✅ DEBUG: Trace payload values
+    console.log("🛒 Context Cart Items:", items);
+    console.log("📤 Sending order data:", JSON.stringify(orderData, null, 2));
+
     const result = await dispatch(createOrderThunk(orderData));
+
+    // ✅ DEBUG: Log response metadata
+    console.log("📨 Order action result:", result);
 
     if (result.error) {
       toast.error(result.error.message || "Failed to create order");
@@ -384,11 +420,6 @@ const CheckoutPage = () => {
                     {shipping === 0 ? "Free" : formatCurrency(shipping)}
                   </span>
                 </div>
-                {shipping > 0 && (
-                  <div className="text-xs text-[#8C7B6B]">
-                    Free shipping on orders over {formatCurrency(5000)}
-                  </div>
-                )}
                 <div className="border-t border-[#E6DFD1] pt-4 mt-1">
                   <div className="flex justify-between items-baseline">
                     <span className="font-display text-lg text-[#14120F]">

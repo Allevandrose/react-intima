@@ -1,109 +1,75 @@
-const express = require('express');
-const mongoose = require('mongoose');
-const cors = require('cors');
-const helmet = require('helmet');
-const morgan = require('morgan');
-const rateLimit = require('express-rate-limit');
-require('dotenv').config();
+import axios from "axios";
 
-const connectDB = require('./config/database');
-const authRoutes = require('./routes/authRoutes');
-const categoryRoutes = require('./routes/categoryRoutes');
-const productRoutes = require('./routes/productRoutes');
-const orderRoutes = require('./routes/orderRoutes');
-const paymentRoutes = require('./routes/paymentRoutes');
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
-const app = express();
-
-// Connect to MongoDB
-connectDB();
-
-// Security middleware
-app.use(helmet());
-
-// CORS - Specific origins
-const allowedOrigins = [
-  'http://localhost:3000',
-  'http://localhost:5173',
-  'http://127.0.0.1:5173',
-  'http://127.0.0.1:3000',
-  'http://localhost:5000',
-  'http://127.0.0.1:5000'
-];
-
-app.use(cors({
-  origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
-    } else {
-      console.log('Blocked CORS origin:', origin);
-      // Allow in development anyway
-      return callback(null, true);
-    }
+// Create axios instance
+const api = axios.create({
+  baseURL: API_URL,
+  headers: {
+    "Content-Type": "application/json",
   },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'],
-  optionsSuccessStatus: 200
-}));
-
-// Rate limiting
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
-  message: 'Too many requests, please try again later'
-});
-app.use('/api', limiter);
-
-// Body parsing
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
-
-// Logging
-if (process.env.NODE_ENV === 'development') {
-  app.use(morgan('dev'));
-}
-
-// Health check
-app.get('/health', (req, res) => {
-  res.json({
-    status: 'OK',
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV,
-    mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
-  });
 });
 
-// Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/categories', categoryRoutes);
-app.use('/api/products', productRoutes);
-app.use('/api/orders', orderRoutes);
-app.use('/api/payments', paymentRoutes);
+// ✅ EXPORT THIS FUNCTION - Get auth token from localStorage
+export const getAuthToken = () => {
+  return localStorage.getItem("token");
+};
 
-// 404 handler
-app.use((req, res) => {
-  res.status(404).json({
-    success: false,
-    message: 'Route not found'
-  });
-});
+// ✅ EXPORT THIS FUNCTION - Set auth token
+export const setAuthToken = (token) => {
+  if (token) {
+    localStorage.setItem("token", token);
+    api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
+  } else {
+    localStorage.removeItem("token");
+    delete api.defaults.headers.common["Authorization"];
+  }
+};
 
-// Error handler
-app.use((err, req, res, next) => {
-  console.error('Error:', err.message);
-  res.status(500).json({
-    success: false,
-    message: 'Server error'
-  });
-});
+// ✅ EXPORT THIS FUNCTION - Get image URL
+export const getImageUrl = (path) => {
+  if (!path) return null;
+  if (path.startsWith("http")) return path;
+  const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000";
+  // Remove trailing slash from baseUrl if it ends with /api
+  const cleanBaseUrl = baseUrl.replace(/\/api$/, "");
+  return `${cleanBaseUrl}${path}`;
+};
 
-// Start server
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📁 Environment: ${process.env.NODE_ENV}`);
-  console.log(`✅ CORS allowed origins:`, allowedOrigins);
-});
+// Request interceptor to add auth token
+api.interceptors.request.use(
+  (config) => {
+    const token = getAuthToken();
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  },
+);
+
+// Response interceptor to handle errors
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      // Token expired or invalid
+      localStorage.removeItem("token");
+      delete api.defaults.headers.common["Authorization"];
+      // Only redirect if not already on login page
+      if (
+        !window.location.pathname.includes("/login") &&
+        !window.location.pathname.includes("/register") &&
+        !window.location.pathname.includes("/forgot-password")
+      ) {
+        window.location.href = "/login";
+      }
+    }
+    return Promise.reject(error);
+  },
+);
+
+// ✅ DEFAULT EXPORT - This is the main export
+export default api;

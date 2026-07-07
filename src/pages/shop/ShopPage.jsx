@@ -88,12 +88,22 @@ const ShopPage = () => {
     setShowFilters(false);
   };
 
-  // Updated function payload for backend integration
+  // Updated function payload for backend integration (Handles first product variant if available)
   const handleAddToCart = (product) => {
+    const firstVariant =
+      product.variants && product.variants.length > 0
+        ? {
+            size: product.variants[0].size || "",
+            color: product.variants[0].color || "",
+            priceAdjustment: product.variants[0].price || 0,
+          }
+        : null;
+
     dispatch(
       addToCart({
         productId: product._id,
         quantity: 1,
+        selectedVariant: firstVariant,
       }),
     );
     toast.success("Added to cart!");

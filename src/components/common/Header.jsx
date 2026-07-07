@@ -4,9 +4,9 @@
  * Fonts: "Fraunces" (display serif, used for the wordmark) + "Work Sans"
  * (nav/body). Add to public/index.html for best performance:
  *
- *   <link rel="preconnect" href="https://fonts.googleapis.com">
- *   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
- *   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;0,9..144,600;1,9..144,400&family=Work+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+ * <link rel="preconnect" href="https://fonts.googleapis.com">
+ * <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+ * <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;0,9..144,600;1,9..144,400&family=Work+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
  *
  * All auth/cart logic (redux selectors, logout dispatch, navigation)
  * is untouched — only markup/classNames changed. The heart mark was
@@ -17,7 +17,7 @@
 import React from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useSelector, useDispatch } from "react-redux";
-import { logout } from "../../redux/slices/authSlice";
+import { logoutUser } from "../../redux/slices/authSlice";
 import { ShoppingCart, LogOut, Heart } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -28,10 +28,13 @@ const Header = () => {
   const navigate = useNavigate();
 
   const handleLogout = () => {
-    dispatch(logout());
+    dispatch(logoutUser());
     toast.success("Logged out successfully");
     navigate("/");
   };
+
+  // 🆕 Check if user is admin
+  const isAdmin = user?.role === "admin";
 
   return (
     <header className="bg-[#F7F3EA]/95 backdrop-blur-sm sticky top-0 z-50 border-b border-[#E6DFD1] font-['Work_Sans']">
@@ -55,44 +58,50 @@ const Header = () => {
 
           {/* Navigation */}
           <nav className="flex items-center gap-7 sm:gap-9">
-            <Link
-              to="/shop"
-              className="hidden sm:inline text-xs uppercase tracking-[0.2em] text-[#5C5348] hover:text-[#14120F] transition-colors"
-            >
-              Shop
-            </Link>
+            {/* 🆕 Only show Shop when authenticated AND not admin */}
+            {isAuthenticated && !isAdmin && (
+              <Link
+                to="/shop"
+                className="hidden sm:inline text-xs uppercase tracking-[0.2em] text-[#5C5348] hover:text-[#14120F] transition-colors"
+              >
+                Shop
+              </Link>
+            )}
 
-            {isAuthenticated ? (
-              <>
-                <Link
-                  to="/orders"
-                  className="hidden sm:inline text-xs uppercase tracking-[0.2em] text-[#5C5348] hover:text-[#14120F] transition-colors"
-                >
-                  Orders
-                </Link>
-                {user?.role === "admin" && (
-                  <Link
-                    to="/admin"
-                    className="hidden sm:inline text-xs uppercase tracking-[0.2em] text-[#5C5348] hover:text-[#14120F] transition-colors"
-                  >
-                    Admin
-                  </Link>
+            {/* 🆕 Show Orders link only if authenticated and NOT admin */}
+            {isAuthenticated && !isAdmin && (
+              <Link
+                to="/orders"
+                className="hidden sm:inline text-xs uppercase tracking-[0.2em] text-[#5C5348] hover:text-[#14120F] transition-colors"
+              >
+                Orders
+              </Link>
+            )}
+
+            {/* 🆕 Show Dashboard link if authenticated and IS admin */}
+            {isAuthenticated && isAdmin && (
+              <Link
+                to="/admin"
+                className="hidden sm:inline text-xs uppercase tracking-[0.2em] text-[#5C5348] hover:text-[#14120F] transition-colors"
+              >
+                Dashboard
+              </Link>
+            )}
+
+            {/* 🆕 Cart - Only show for authenticated non-admin users */}
+            {isAuthenticated && !isAdmin && (
+              <Link
+                to="/cart"
+                className="relative text-[#14120F] hover:text-[#B08D4F] transition-colors"
+              >
+                <ShoppingCart className="w-5 h-5" strokeWidth={1.5} />
+                {totalItems > 0 && (
+                  <span className="absolute -top-2 -right-2.5 bg-[#B08D4F] text-[#F7F3EA] text-[10px] font-medium rounded-full w-4.5 h-4.5 min-w-[18px] min-h-[18px] flex items-center justify-center">
+                    {totalItems}
+                  </span>
                 )}
-              </>
-            ) : null}
-
-            {/* Cart */}
-            <Link
-              to="/cart"
-              className="relative text-[#14120F] hover:text-[#B08D4F] transition-colors"
-            >
-              <ShoppingCart className="w-5 h-5" strokeWidth={1.5} />
-              {totalItems > 0 && (
-                <span className="absolute -top-2 -right-2.5 bg-[#B08D4F] text-[#F7F3EA] text-[10px] font-medium rounded-full w-4.5 h-4.5 min-w-[18px] min-h-[18px] flex items-center justify-center">
-                  {totalItems}
-                </span>
-              )}
-            </Link>
+              </Link>
+            )}
 
             {/* Auth */}
             {isAuthenticated ? (
@@ -109,6 +118,7 @@ const Header = () => {
                 </button>
               </div>
             ) : (
+              // 🆕 Guest mode - Only show Login and Register
               <div className="flex items-center gap-5">
                 <Link
                   to="/login"

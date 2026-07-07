@@ -18,6 +18,7 @@ const Login = () => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
+  // 🆕 Updated handleSubmit with role-based routing checks
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -30,7 +31,14 @@ const Login = () => {
 
     if (result.success) {
       toast.success("Welcome back!");
-      navigate("/");
+
+      // 🆕 Redirect based on user role from localStorage
+      const user = JSON.parse(localStorage.getItem("user"));
+      if (user?.role === "admin") {
+        navigate("/admin");
+      } else {
+        navigate("/");
+      }
     } else {
       toast.error(result.error || "Login failed");
     }

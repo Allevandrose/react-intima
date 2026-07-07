@@ -1,4 +1,3 @@
-// src/pages/cart/CartPage.jsx
 import React from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { Link, useNavigate } from "react-router-dom";
@@ -14,8 +13,13 @@ import {
 } from "lucide-react";
 import {
   removeFromCart,
-  updateQuantity,
-  clearCart,
+  updateCartItem,
+  clearCartThunk,
+  selectCartItems,
+  selectTotalItems,
+  selectSubtotal,
+  selectShipping,
+  selectTotal,
 } from "../../redux/slices/cartSlice";
 import { getImageUrl } from "../../api";
 import toast from "react-hot-toast";
@@ -24,13 +28,19 @@ const CartPage = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
-  // Extracting modern state fields calculated by the cartSlice reducer
-  const { items, totalItems, subtotal, shipping, total } = useSelector(
-    (state) => state.cart,
-  );
+  // ✅ FIXED: Use unified selectors with defaults to prevent NaN/undefined runtime crashes
+  const items = useSelector(selectCartItems) || [];
+  const totalItems = useSelector(selectTotalItems) || 0;
+  const subtotal = useSelector(selectSubtotal) || 0;
+  const shipping = useSelector(selectShipping) || 0;
+  const total = useSelector(selectTotal) || 0;
   const { isAuthenticated } = useSelector((state) => state.auth);
 
+  // ✅ FIXED: Check if amount is a valid number, non-zero, or missing
   const formatCurrency = (amount) => {
+    if (!amount || isNaN(amount) || amount === 0) {
+      return "Ksh 0";
+    }
     return new Intl.NumberFormat("en-KE", {
       style: "currency",
       currency: "KES",
@@ -43,16 +53,16 @@ const CartPage = () => {
       dispatch(
         removeFromCart({
           productId: item.productId,
-          selectedVariant: item.selectedVariant,
+          selectedVariant: item.selectedVariant || null,
         }),
       );
       toast.success("Item removed from cart");
     } else {
       dispatch(
-        updateQuantity({
+        updateCartItem({
           productId: item.productId,
-          selectedVariant: item.selectedVariant,
           quantity: newQuantity,
+          selectedVariant: item.selectedVariant || null,
         }),
       );
     }
@@ -62,7 +72,7 @@ const CartPage = () => {
     dispatch(
       removeFromCart({
         productId: item.productId,
-        selectedVariant: item.selectedVariant,
+        selectedVariant: item.selectedVariant || null,
       }),
     );
     toast.success("Item removed from cart");
@@ -70,7 +80,7 @@ const CartPage = () => {
 
   const handleClearCart = () => {
     if (window.confirm("Are you sure you want to clear your cart?")) {
-      dispatch(clearCart());
+      dispatch(clearCartThunk());
       toast.success("Cart cleared");
     }
   };
@@ -182,27 +192,28 @@ const CartPage = () => {
                             <h3 className="font-display text-base text-[#14120F] truncate">
                               {item.name}
                             </h3>
-                            {item.selectedVariant && (
-                              <div className="flex flex-wrap gap-1.5 mt-2">
-                                {item.selectedVariant.color && (
-                                  <span className="text-[11px] border border-[#E6DFD1] px-2 py-0.5 flex items-center gap-1.5 text-[#5C5348] tracking-wide">
-                                    <span
-                                      className="w-2 h-2 rounded-full inline-block border border-[#D8CFBC]"
-                                      style={{
-                                        backgroundColor:
-                                          item.selectedVariant.color.toLowerCase(),
-                                      }}
-                                    />
-                                    {item.selectedVariant.color}
-                                  </span>
-                                )}
-                                {item.selectedVariant.size && (
-                                  <span className="text-[11px] border border-[#E6DFD1] px-2 py-0.5 text-[#5C5348] tracking-wide">
-                                    Size {item.selectedVariant.size}
-                                  </span>
-                                )}
-                              </div>
-                            )}
+                            {item.selectedVariant &&
+                              item.selectedVariant.size && (
+                                <div className="flex flex-wrap gap-1.5 mt-2">
+                                  {item.selectedVariant.color && (
+                                    <span className="text-[11px] border border-[#E6DFD1] px-2 py-0.5 flex items-center gap-1.5 text-[#5C5348] tracking-wide">
+                                      <span
+                                        className="w-2 h-2 rounded-full inline-block border border-[#D8CFBC]"
+                                        style={{
+                                          backgroundColor:
+                                            item.selectedVariant.color.toLowerCase(),
+                                        }}
+                                      />
+                                      {item.selectedVariant.color}
+                                    </span>
+                                  )}
+                                  {item.selectedVariant.size && (
+                                    <span className="text-[11px] border border-[#E6DFD1] px-2 py-0.5 text-[#5C5348] tracking-wide">
+                                      Size {item.selectedVariant.size}
+                                    </span>
+                                  )}
+                                </div>
+                              )}
                           </div>
                         </div>
                       </div>
@@ -292,7 +303,7 @@ const CartPage = () => {
 
                 {shipping > 0 && (
                   <div className="text-xs text-[#8C7B6B]">
-                    Free shipping on orders over {formatCurrency(5000)}
+                    Free shipping on orders over {formatCurrency(1)}
                   </div>
                 )}
 
@@ -341,10 +352,9 @@ const CartPage = () => {
               </div>
 
               {/* Dynamic Free Shipping Progress Notice */}
-              {subtotal > 0 && subtotal < 5000 && (
+              {subtotal > 0 && subtotal < 1 && (
                 <div className="mt-5 p-3.5 bg-[#FBF9F4] border border-[#E6DFD1] text-xs text-[#5C5348] tracking-wide">
-                  Add {formatCurrency(5000 - subtotal)} more to get free
-                  shipping
+                  Add {formatCurrency(1 - subtotal)} more to get free shipping
                 </div>
               )}
             </div>

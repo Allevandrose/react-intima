@@ -1,7 +1,7 @@
-// src/redux/slices/authSlice.js
 import { createSlice } from "@reduxjs/toolkit";
 import { login, register, getProfile } from "../../api/auth";
-import { fetchCart } from "./cartSlice";
+// 🆕 Added clearCartState import alongside fetchCart
+import { fetchCart, clearCartState } from "./cartSlice";
 
 const initialState = {
   user: JSON.parse(localStorage.getItem("user")) || null,
@@ -36,6 +36,7 @@ const authSlice = createSlice({
       state.isAuthenticated = false;
       localStorage.removeItem("token");
       localStorage.removeItem("user");
+      // 🆕 Note: clearCartState is handled inside the logoutUser async thunk below
     },
     clearError: (state) => {
       state.error = null;
@@ -47,6 +48,14 @@ export const { setLoading, setUser, setToken, setError, logout, clearError } =
   authSlice.actions;
 
 // Async thunks
+
+// 🆕 Async logout thunk to cleanly clear both auth and cart states
+export const logoutUser = () => (dispatch) => {
+  dispatch(logout());
+  dispatch(clearCartState());
+};
+
+// 🆕 Updated with role-based cart management and role redirection payload
 export const loginUser = (credentials) => async (dispatch) => {
   try {
     dispatch(setLoading(true));
@@ -56,11 +65,18 @@ export const loginUser = (credentials) => async (dispatch) => {
     dispatch(setToken(token));
     dispatch(setUser(user));
 
-    // Fetch user's cart after login
-    await dispatch(fetchCart());
+    // 🆕 Fetch cart only if user is NOT admin
+    if (user.role !== "admin") {
+      await dispatch(fetchCart());
+    } else {
+      // 🆕 Clear cart for admin users
+      dispatch(clearCartState());
+    }
 
     dispatch(setLoading(false));
-    return { success: true };
+
+    // 🆕 Return role for redirection
+    return { success: true, role: user.role };
   } catch (error) {
     dispatch(setError(error.response?.data?.message || "Login failed"));
     dispatch(setLoading(false));
@@ -91,10 +107,17 @@ export const loadUser = () => async (dispatch) => {
     if (!token) return;
 
     const response = await getProfile();
-    dispatch(setUser(response.data.data));
-    dispatch(fetchCart());
+    const user = response.data.data;
+    dispatch(setUser(user));
+
+    // 🆕 Added role check to loadUser as well to keep behaviors consistent on refresh
+    if (user.role !== "admin") {
+      dispatch(fetchCart());
+    } else {
+      dispatch(clearCartState());
+    }
   } catch (error) {
-    dispatch(logout());
+    dispatch(logoutUser()); // Updated to clean up cart states on invalid session tokens too
   }
 };
 
