@@ -5,9 +5,9 @@
  * For best performance, add these to your public/index.html <head>
  * instead of relying on the inline @import below:
  *
- *   <link rel="preconnect" href="https://fonts.googleapis.com">
- *   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
- *   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;0,9..144,600;1,9..144,400&family=Work+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+ * <link rel="preconnect" href="https://fonts.googleapis.com">
+ * <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+ * <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;0,9..144,600;1,9..144,400&family=Work+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
  *
  * The inline <style> tag below is left in as a safe fallback so the
  * page still looks right even if you forget to add the link tags.
@@ -88,8 +88,14 @@ const ShopPage = () => {
     setShowFilters(false);
   };
 
-  // Updated function payload for backend integration (Handles first product variant if available)
+  // ✅ Updated function with stock and variant validations
   const handleAddToCart = (product) => {
+    // Check base product stock
+    if (product.stock === 0) {
+      toast.error(`${product.name} is out of stock`);
+      return;
+    }
+
     const firstVariant =
       product.variants && product.variants.length > 0
         ? {
@@ -98,6 +104,17 @@ const ShopPage = () => {
             priceAdjustment: product.variants[0].price || 0,
           }
         : null;
+
+    // Check variant stock if it exists
+    if (firstVariant && firstVariant.size) {
+      const variant = product.variants.find(
+        (v) => v.size === firstVariant.size && v.color === firstVariant.color,
+      );
+      if (variant && variant.stock === 0) {
+        toast.error(`${product.name} is out of stock`);
+        return;
+      }
+    }
 
     dispatch(
       addToCart({

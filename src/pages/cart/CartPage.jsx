@@ -57,15 +57,32 @@ const CartPage = () => {
         }),
       );
       toast.success("Item removed from cart");
-    } else {
-      dispatch(
-        updateCartItem({
-          productId: item.productId,
-          quantity: newQuantity,
-          selectedVariant: item.selectedVariant || null,
-        }),
-      );
+      return;
     }
+
+    // ✅ Check if quantity exceeds stock
+    const maxStock = item.product?.stock || 0;
+    const variantStock =
+      item.product?.variants?.find(
+        (v) =>
+          v.size === item.selectedVariant?.size &&
+          v.color === item.selectedVariant?.color,
+      )?.stock || 0;
+
+    const availableStock = item.selectedVariant?.size ? variantStock : maxStock;
+
+    if (newQuantity > availableStock) {
+      toast.error(`Only ${availableStock} available in stock`);
+      return;
+    }
+
+    dispatch(
+      updateCartItem({
+        productId: item.productId,
+        quantity: newQuantity,
+        selectedVariant: item.selectedVariant || null,
+      }),
+    );
   };
 
   const handleRemoveItem = (item) => {
@@ -79,7 +96,7 @@ const CartPage = () => {
   };
 
   const handleClearCart = () => {
-    if (window.confirm("Are you sure you want to clear your cart?")) {
+    if (window.confirm("Are you sure you want to clear your bag?")) {
       dispatch(clearCartThunk());
       toast.success("Cart cleared");
     }

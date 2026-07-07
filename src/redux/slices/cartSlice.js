@@ -142,9 +142,13 @@ export const addToCart = createAsyncThunk(
       );
       return response.data.data;
     } catch (error) {
-      return rejectWithValue(
-        error.response?.data?.message || "Failed to add to cart",
-      );
+      // ✅ Extract stock error message from response
+      const message = error.response?.data?.message || "Failed to add to cart";
+
+      // ✅ Show toast with specific error
+      toast.error(message);
+
+      return rejectWithValue(message);
     }
   },
 );
@@ -309,7 +313,7 @@ const cartSlice = createSlice({
       .addCase(addToCart.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload || "Failed to add to cart";
-        toast.error(action.payload || "Failed to add to cart");
+        // Note: toast.error is handled inside the Thunk itself, but we still handle the slice error state here
       })
 
       // ============================================

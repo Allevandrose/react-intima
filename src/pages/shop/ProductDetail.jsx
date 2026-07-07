@@ -4,9 +4,9 @@
  * Fonts: "Fraunces" (display serif) + "Work Sans" (body/UI).
  * Add these to public/index.html for best performance:
  *
- *   <link rel="preconnect" href="https://fonts.googleapis.com">
- *   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
- *   <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;0,9..144,600;1,9..144,400&family=Work+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+ * <link rel="preconnect" href="https://fonts.googleapis.com">
+ * <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+ * <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;0,9..144,600;1,9..144,400&family=Work+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
  *
  * All data logic (redux, variant selection, quantity, cart, routing)
  * is untouched — only markup/classNames changed.
@@ -90,8 +90,16 @@ const ProductDetail = () => {
   };
 
   const handleAddToCart = () => {
-    if (getCurrentStock() < quantity) {
-      toast.error("Not enough stock available");
+    const availableStock = getCurrentStock();
+
+    // ✅ Check stock before adding
+    if (availableStock === 0) {
+      toast.error("Product is out of stock");
+      return;
+    }
+
+    if (availableStock < quantity) {
+      toast.error(`Only ${availableStock} available in stock`);
       return;
     }
 
@@ -100,7 +108,7 @@ const ProductDetail = () => {
       name: product.name,
       price: getCurrentPrice(),
       quantity: quantity,
-      image: product.images?.[0] || null, // Added image field reference
+      image: product.images?.[0] || null,
       selectedVariant: selectedVariant
         ? {
             color: selectedVariant.color,
