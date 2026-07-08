@@ -3,7 +3,6 @@ import { useParams, Link, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchProduct } from "../../redux/slices/productsSlice";
 import { addToCart } from "../../redux/slices/cartSlice";
-import { getOptimizedImage } from "../../utils/imageHelpers";
 import {
   ShoppingBag,
   ArrowLeft,
@@ -12,6 +11,7 @@ import {
   CreditCard,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import Swal from "sweetalert2";
 
 const ProductDetail = () => {
   const { slug } = useParams();
@@ -61,8 +61,9 @@ const ProductDetail = () => {
     }
   };
 
+  // ✅ FIXED: Get current price from variant or product
   const getCurrentPrice = () => {
-    if (selectedVariant?.price) {
+    if (selectedVariant?.price && selectedVariant.price > 0) {
       return selectedVariant.price;
     }
     return product?.price || 0;
@@ -75,35 +76,58 @@ const ProductDetail = () => {
     return product?.stock || 0;
   };
 
-  const handleAddToCart = () => {
+  // ✅ Updated with SweetAlert
+  const handleAddToCart = async () => {
     const availableStock = getCurrentStock();
 
     if (availableStock === 0) {
-      toast.error("Product is out of stock");
+      await Swal.fire({
+        icon: "error",
+        title: "Out of Stock",
+        text: "This product is currently out of stock.",
+        background: "#F7F3EA",
+        iconColor: "#8C4B3A",
+        confirmButtonColor: "#14120F",
+      });
       return;
     }
 
     if (availableStock < quantity) {
-      toast.error(`Only ${availableStock} available in stock`);
+      await Swal.fire({
+        icon: "warning",
+        title: "Insufficient Stock",
+        text: `Only ${availableStock} available in stock.`,
+        background: "#F7F3EA",
+        iconColor: "#B08D4F",
+        confirmButtonColor: "#14120F",
+      });
       return;
     }
 
     const cartItem = {
       productId: product._id,
-      name: product.name,
-      price: getCurrentPrice(),
       quantity: quantity,
-      image: product.images?.[0] || null,
       selectedVariant: selectedVariant
         ? {
             color: selectedVariant.color,
             size: selectedVariant.size,
+            priceAdjustment: selectedVariant.price || 0,
           }
         : null,
     };
 
     dispatch(addToCart(cartItem));
-    toast.success("Added to cart!");
+
+    await Swal.fire({
+      icon: "success",
+      title: "Added to Bag!",
+      text: `${product.name} has been added to your bag.`,
+      timer: 2000,
+      showConfirmButton: false,
+      background: "#F7F3EA",
+      iconColor: "#B08D4F",
+      timerProgressBar: true,
+    });
   };
 
   if (loading) {
@@ -117,7 +141,6 @@ const ProductDetail = () => {
   if (!product) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center bg-[#F7F3EA] font-['Work_Sans']">
-        <style>{`@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;0,9..144,600;1,9..144,400&family=Work+Sans:wght@300;400;500;600&display=swap'); .font-display { font-family: 'Fraunces', serif; }`}</style>
         <div className="text-center px-6">
           <h2 className="font-display text-3xl text-[#14120F] mb-3">
             Product Not Found
@@ -139,16 +162,8 @@ const ProductDetail = () => {
   const colors = getAvailableColors();
   const sizes = getAvailableSizes();
   const hasVariants = product.variants && product.variants.length > 0;
-
-  // ✅ Get optimized image URL
-  const getImageUrl = (imagePath) => {
-    if (!imagePath) return "https://via.placeholder.com/600x750?text=No+Image";
-    // If it's a Cloudinary URL, use it directly (it's already optimized)
-    if (imagePath.includes("cloudinary.com")) {
-      return imagePath;
-    }
-    return imagePath;
-  };
+  const currentPrice = getCurrentPrice();
+  const currentStock = getCurrentStock();
 
   return (
     <div className="min-h-screen bg-[#F7F3EA] font-['Work_Sans']">
@@ -173,7 +188,7 @@ const ProductDetail = () => {
               <img
                 src={
                   product.images?.[selectedImage]
-                    ? product.images[selectedImage] // Cloudinary URL
+                    ? product.images[selectedImage]
                     : "https://via.placeholder.com/600x750?text=No+Image"
                 }
                 alt={product.name}
@@ -198,7 +213,7 @@ const ProductDetail = () => {
                     }`}
                   >
                     <img
-                      src={img} // Cloudinary URL
+                      src={img}
                       alt={`${product.name} ${index + 1}`}
                       className="w-full h-full object-cover"
                       onError={(e) => {
@@ -213,7 +228,7 @@ const ProductDetail = () => {
             )}
           </div>
 
-          {/* Product Info - Rest of component stays the same */}
+          {/* Product Info */}
           <div className="space-y-7">
             {product.isFeatured && (
               <span className="inline-block border border-[#B08D4F] text-[#B08D4F] text-[10px] uppercase tracking-[0.2em] px-3 py-1.5">
@@ -228,8 +243,9 @@ const ProductDetail = () => {
 
               <div className="flex items-center gap-3 mt-4">
                 <p className="text-2xl text-[#B08D4F] font-medium tracking-wide">
-                  {formatCurrency(getCurrentPrice())}
+                  {formatCurrency(currentPrice)}
                 </p>
+                {/* ✅ Show original price if variant has different price */}
                 {selectedVariant?.price > 0 &&
                   selectedVariant.price !== product.price && (
                     <span className="text-sm text-[#B7AC98] line-through">
@@ -239,11 +255,10 @@ const ProductDetail = () => {
               </div>
             </div>
 
-            {/* Rest of the component remains the same */}
             <div className="flex items-center gap-2">
-              {getCurrentStock() > 0 ? (
+              {currentStock > 0 ? (
                 <span className="text-[#1F3D33] text-xs uppercase tracking-[0.15em] font-medium">
-                  In Stock — {getCurrentStock()} available
+                  In Stock — {currentStock} available
                 </span>
               ) : (
                 <span className="text-[#8C4B3A] text-xs uppercase tracking-[0.15em] font-medium">
@@ -256,7 +271,7 @@ const ProductDetail = () => {
               {product.description}
             </p>
 
-            {/* Variants section - same as before */}
+            {/* Variants section */}
             {hasVariants && (
               <div className="space-y-6">
                 {colors.length > 0 && (
@@ -339,7 +354,7 @@ const ProductDetail = () => {
               </div>
             )}
 
-            {/* Quantity and Add to Cart - same as before */}
+            {/* Quantity and Add to Cart */}
             <div>
               <h3 className="text-[11px] uppercase tracking-[0.2em] text-[#8C7B6B] mb-3">
                 Quantity
@@ -357,17 +372,17 @@ const ProductDetail = () => {
                   </span>
                   <button
                     onClick={() =>
-                      setQuantity(Math.min(getCurrentStock(), quantity + 1))
+                      setQuantity(Math.min(currentStock, quantity + 1))
                     }
                     className="w-10 h-10 flex items-center justify-center hover:bg-[#EFEAE0] transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-[#14120F]"
-                    disabled={quantity >= getCurrentStock()}
+                    disabled={quantity >= currentStock}
                   >
                     +
                   </button>
                 </div>
-                {getCurrentStock() > 0 && (
+                {currentStock > 0 && (
                   <span className="text-xs text-[#8C7B6B] tracking-wide">
-                    Max {getCurrentStock()}
+                    Max {currentStock}
                   </span>
                 )}
               </div>
@@ -375,11 +390,11 @@ const ProductDetail = () => {
 
             <button
               onClick={handleAddToCart}
-              disabled={getCurrentStock() === 0}
+              disabled={currentStock === 0}
               className="w-full bg-[#14120F] text-[#F7F3EA] py-4 text-xs uppercase tracking-[0.25em] hover:bg-[#1F3D33] transition-colors duration-300 flex items-center justify-center gap-2.5 disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <ShoppingBag className="w-4 h-4" />
-              {getCurrentStock() === 0 ? "Out of Stock" : "Add to Bag"}
+              {currentStock === 0 ? "Out of Stock" : "Add to Bag"}
             </button>
 
             {/* Trust Badges */}

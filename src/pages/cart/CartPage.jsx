@@ -21,14 +21,13 @@ import {
   selectShipping,
   selectTotal,
 } from "../../redux/slices/cartSlice";
-import { getImageUrl } from "../../api";
 import toast from "react-hot-toast";
+import Swal from "sweetalert2";
 
 const CartPage = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
 
-  // ✅ FIXED: Use unified selectors with defaults to prevent NaN/undefined runtime crashes
   const items = useSelector(selectCartItems) || [];
   const totalItems = useSelector(selectTotalItems) || 0;
   const subtotal = useSelector(selectSubtotal) || 0;
@@ -36,7 +35,6 @@ const CartPage = () => {
   const total = useSelector(selectTotal) || 0;
   const { isAuthenticated } = useSelector((state) => state.auth);
 
-  // ✅ FIXED: Check if amount is a valid number, non-zero, or missing
   const formatCurrency = (amount) => {
     if (!amount || isNaN(amount) || amount === 0) {
       return "Ksh 0";
@@ -60,7 +58,6 @@ const CartPage = () => {
       return;
     }
 
-    // ✅ Check if quantity exceeds stock
     const maxStock = item.product?.stock || 0;
     const variantStock =
       item.product?.variants?.find(
@@ -85,26 +82,79 @@ const CartPage = () => {
     );
   };
 
-  const handleRemoveItem = (item) => {
-    dispatch(
-      removeFromCart({
-        productId: item.productId,
-        selectedVariant: item.selectedVariant || null,
-      }),
-    );
-    toast.success("Item removed from cart");
-  };
+  // ✅ Updated with SweetAlert
+  const handleRemoveItem = async (item) => {
+    const result = await Swal.fire({
+      title: "Remove Item?",
+      text: `Are you sure you want to remove ${item.name} from your bag?`,
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonColor: "#8C4B3A",
+      cancelButtonColor: "#14120F",
+      confirmButtonText: "Yes, Remove",
+      cancelButtonText: "Cancel",
+      background: "#F7F3EA",
+    });
 
-  const handleClearCart = () => {
-    if (window.confirm("Are you sure you want to clear your bag?")) {
-      dispatch(clearCartThunk());
-      toast.success("Cart cleared");
+    if (result.isConfirmed) {
+      dispatch(
+        removeFromCart({
+          productId: item.productId,
+          selectedVariant: item.selectedVariant || null,
+        }),
+      );
+      await Swal.fire({
+        icon: "success",
+        title: "Removed!",
+        text: "Item has been removed from your bag.",
+        timer: 1500,
+        showConfirmButton: false,
+        background: "#F7F3EA",
+        iconColor: "#B08D4F",
+      });
     }
   };
 
-  const handleCheckout = () => {
+  // ✅ Updated with SweetAlert
+  const handleClearCart = async () => {
+    const result = await Swal.fire({
+      title: "Clear Bag?",
+      text: "Are you sure you want to remove all items from your bag?",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#8C4B3A",
+      cancelButtonColor: "#14120F",
+      confirmButtonText: "Yes, Clear All",
+      cancelButtonText: "Cancel",
+      background: "#F7F3EA",
+    });
+
+    if (result.isConfirmed) {
+      dispatch(clearCartThunk());
+      await Swal.fire({
+        icon: "success",
+        title: "Cleared!",
+        text: "Your bag is now empty.",
+        timer: 1500,
+        showConfirmButton: false,
+        background: "#F7F3EA",
+        iconColor: "#B08D4F",
+      });
+    }
+  };
+
+  // ✅ Updated with SweetAlert
+  const handleCheckout = async () => {
     if (!isAuthenticated) {
-      toast.error("Please login to checkout");
+      await Swal.fire({
+        icon: "info",
+        title: "Login Required",
+        text: "Please login to proceed to checkout.",
+        background: "#F7F3EA",
+        iconColor: "#B08D4F",
+        confirmButtonColor: "#14120F",
+        confirmButtonText: "Login Now",
+      });
       navigate("/login");
       return;
     }
@@ -143,7 +193,7 @@ const CartPage = () => {
     );
   }
 
-  // Active Cart State
+  // Active Cart State - same as before
   return (
     <div className="min-h-screen bg-[#F7F3EA] font-['Work_Sans']">
       <style>{`
@@ -188,7 +238,7 @@ const CartPage = () => {
                           <div className="w-16 h-20 bg-[#EFEAE0] flex items-center justify-center flex-shrink-0 overflow-hidden">
                             {item.image ? (
                               <img
-                                src={item.image} // Direct Cloudinary URL
+                                src={item.image}
                                 alt={item.name}
                                 className="w-full h-full object-cover"
                                 onError={(e) => {
@@ -367,13 +417,6 @@ const CartPage = () => {
                   <span>Pay via M-Pesa or Card</span>
                 </div>
               </div>
-
-              {/* Dynamic Free Shipping Progress Notice */}
-              {subtotal > 0 && subtotal < 1 && (
-                <div className="mt-5 p-3.5 bg-[#FBF9F4] border border-[#E6DFD1] text-xs text-[#5C5348] tracking-wide">
-                  Add {formatCurrency(1 - subtotal)} more to get free shipping
-                </div>
-              )}
             </div>
           </div>
         </div>

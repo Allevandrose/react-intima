@@ -1,20 +1,5 @@
 /**
- * ProductsAdmin — refined back-office styling (same brand palette as
- * ShopPage / ProductDetail / Header, but tuned for a working dashboard
- * rather than the editorial storefront look — denser, more functional,
- * less ornamental).
- * ------------------------------------------------------------------
- * Fonts: "Fraunces" (page title only) + "Work Sans" (everything else —
- * tables and forms read better in a plain grotesque at small sizes).
- * Add to public/index.html for best performance:
- *
- * <link rel="preconnect" href="https://fonts.googleapis.com">
- * <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
- * <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500&family=Work+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
- *
- * All state, handlers, API calls, and redux logic are untouched —
- * only markup/classNames changed.
- * ------------------------------------------------------------------
+ * ProductsAdmin — refined back-office styling with SweetAlert
  */
 import React, { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
@@ -34,6 +19,7 @@ import {
   Image as ImageIcon,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import Swal from "sweetalert2";
 
 const ProductsAdmin = () => {
   const dispatch = useDispatch();
@@ -63,7 +49,6 @@ const ProductsAdmin = () => {
   });
   const [imageFiles, setImageFiles] = useState([]);
   const [imagePreviews, setImagePreviews] = useState([]);
-  // Track which existing images should be removed
   const [imagesToRemove, setImagesToRemove] = useState([]);
 
   useEffect(() => {
@@ -108,17 +93,33 @@ const ProductsAdmin = () => {
     setImagePreviews(previews);
   };
 
-  const removeImage = (index) => {
+  // ✅ Updated with SweetAlert
+  const removeImage = async (index) => {
     const fileToRemove = imageFiles[index];
 
-    // If it's a File object (newly uploaded), just remove from state
+    // If it's an existing image, confirm removal
+    if (!(fileToRemove instanceof File)) {
+      const result = await Swal.fire({
+        title: "Remove Image?",
+        text: "This image will be permanently deleted from the product.",
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonColor: "#8C4B3A",
+        cancelButtonColor: "#14120F",
+        confirmButtonText: "Yes, Remove",
+        cancelButtonText: "Cancel",
+        background: "#F7F3EA",
+      });
+
+      if (!result.isConfirmed) return;
+    }
+
     if (fileToRemove instanceof File) {
       const newFiles = imageFiles.filter((_, i) => i !== index);
       const newPreviews = imagePreviews.filter((_, i) => i !== index);
       setImageFiles(newFiles);
       setImagePreviews(newPreviews);
     } else {
-      // It's an existing image URL - mark for removal
       const imagePath = fileToRemove;
       setImagesToRemove([...imagesToRemove, imagePath]);
 
@@ -129,8 +130,18 @@ const ProductsAdmin = () => {
     }
   };
 
+  // ✅ Updated with SweetAlert
   const addVariant = () => {
     if (newVariant.color || newVariant.size) {
+      // Check if variant already exists
+      const exists = formData.variants.some(
+        (v) => v.color === newVariant.color && v.size === newVariant.size,
+      );
+      if (exists) {
+        toast.error("This variant already exists");
+        return;
+      }
+
       setFormData({
         ...formData,
         variants: [
@@ -144,18 +155,54 @@ const ProductsAdmin = () => {
         ],
       });
       setNewVariant({ color: "", size: "", stock: "", price: "" });
+      toast.success("Variant added");
     } else {
       toast.error("Please enter at least a color or size");
     }
   };
 
-  const removeVariant = (index) => {
-    const updatedVariants = formData.variants.filter((_, i) => i !== index);
-    setFormData({ ...formData, variants: updatedVariants });
+  // ✅ Updated with SweetAlert
+  const removeVariant = async (index) => {
+    const variant = formData.variants[index];
+    const result = await Swal.fire({
+      title: "Remove Variant?",
+      text: `Remove ${variant.color || variant.size || "variant"} from the product?`,
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonColor: "#8C4B3A",
+      cancelButtonColor: "#14120F",
+      confirmButtonText: "Yes, Remove",
+      cancelButtonText: "Cancel",
+      background: "#F7F3EA",
+    });
+
+    if (result.isConfirmed) {
+      const updatedVariants = formData.variants.filter((_, i) => i !== index);
+      setFormData({ ...formData, variants: updatedVariants });
+      toast.success("Variant removed");
+    }
   };
 
+  // ✅ Updated with SweetAlert validation
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // Validate required fields
+    if (
+      !formData.name ||
+      !formData.description ||
+      !formData.price ||
+      !formData.category
+    ) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
+
+    // Validate variants
+    if (formData.hasVariants && formData.variants.length === 0) {
+      toast.error("Please add at least one variant");
+      return;
+    }
 
     const formDataToSend = new FormData();
     formDataToSend.append("name", formData.name);
@@ -164,21 +211,18 @@ const ProductsAdmin = () => {
     formDataToSend.append("category", formData.category);
     formDataToSend.append("isFeatured", formData.isFeatured);
 
-    // Send stock explicitly if it doesn't have variants
     if (formData.hasVariants) {
       formDataToSend.append("variants", JSON.stringify(formData.variants));
     } else {
       formDataToSend.append("stock", formData.stock || 0);
     }
 
-    // Add new image files
     imageFiles.forEach((file) => {
       if (file instanceof File) {
         formDataToSend.append("images", file);
       }
     });
 
-    // If editing, send images to remove
     if (editingProduct && imagesToRemove.length > 0) {
       formDataToSend.append("removeImages", JSON.stringify(imagesToRemove));
     }
@@ -186,10 +230,28 @@ const ProductsAdmin = () => {
     try {
       if (editingProduct) {
         await updateProduct(editingProduct._id, formDataToSend);
-        toast.success("Product updated successfully!");
+        await Swal.fire({
+          icon: "success",
+          title: "Updated!",
+          text: "Product has been updated successfully.",
+          timer: 2000,
+          showConfirmButton: false,
+          background: "#F7F3EA",
+          iconColor: "#B08D4F",
+          timerProgressBar: true,
+        });
       } else {
         await createProduct(formDataToSend);
-        toast.success("Product created successfully!");
+        await Swal.fire({
+          icon: "success",
+          title: "Created!",
+          text: "Product has been created successfully.",
+          timer: 2000,
+          showConfirmButton: false,
+          background: "#F7F3EA",
+          iconColor: "#B08D4F",
+          timerProgressBar: true,
+        });
       }
 
       setShowModal(false);
@@ -204,11 +266,32 @@ const ProductsAdmin = () => {
     }
   };
 
-  const handleDelete = async (id) => {
-    if (window.confirm("Are you sure you want to delete this product?")) {
+  // ✅ Updated with SweetAlert
+  const handleDelete = async (id, productName) => {
+    const result = await Swal.fire({
+      title: "Delete Product?",
+      text: `Are you sure you want to delete "${productName}"? This action cannot be undone.`,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#8C4B3A",
+      cancelButtonColor: "#14120F",
+      confirmButtonText: "Yes, Delete",
+      cancelButtonText: "Cancel",
+      background: "#F7F3EA",
+    });
+
+    if (result.isConfirmed) {
       try {
         await deleteProduct(id);
-        toast.success("Product deleted successfully!");
+        await Swal.fire({
+          icon: "success",
+          title: "Deleted!",
+          text: "Product has been deleted.",
+          timer: 1500,
+          showConfirmButton: false,
+          background: "#F7F3EA",
+          iconColor: "#B08D4F",
+        });
         dispatch(fetchProducts());
       } catch (error) {
         toast.error("Failed to delete product");
@@ -220,7 +303,6 @@ const ProductsAdmin = () => {
     const hasVariants = product.variants && product.variants.length > 0;
     setEditingProduct(product);
 
-    // Get image paths from product
     const existingImages = product.images || [];
     const existingPreviews = existingImages.map((img) => img);
 
@@ -236,7 +318,6 @@ const ProductsAdmin = () => {
       variants: hasVariants ? product.variants : [],
     });
 
-    // Set image files (existing images as strings, not Files)
     setImageFiles(existingImages);
     setImagePreviews(existingPreviews);
     setImagesToRemove([]);
@@ -250,14 +331,31 @@ const ProductsAdmin = () => {
     return product.stock || 0;
   };
 
+  // ✅ IMPROVED: Show variant details including prices
   const getVariantDisplay = (variants) => {
     if (!variants || variants.length === 0) return "No variants";
+
     const colors = [...new Set(variants.map((v) => v.color).filter(Boolean))];
     const sizes = [...new Set(variants.map((v) => v.size).filter(Boolean))];
+    const hasPrices = variants.some((v) => v.price > 0);
+
     let display = [];
     if (colors.length) display.push(`${colors.length} color(s)`);
     if (sizes.length) display.push(`${sizes.length} size(s)`);
+    if (hasPrices) display.push("with prices");
+
     return display.join(", ") || "Variants";
+  };
+
+  // ✅ NEW: Get variant price range
+  const getVariantPriceRange = (variants) => {
+    if (!variants || variants.length === 0) return null;
+    const prices = variants.map((v) => v.price).filter((p) => p > 0);
+    if (prices.length === 0) return null;
+    const min = Math.min(...prices);
+    const max = Math.max(...prices);
+    if (min === max) return formatCurrency(min);
+    return `${formatCurrency(min)} - ${formatCurrency(max)}`;
   };
 
   const inputClass =
@@ -328,6 +426,7 @@ const ProductsAdmin = () => {
                     <th className="px-6 py-3.5 font-medium">Category</th>
                     <th className="px-6 py-3.5 font-medium">Stock</th>
                     <th className="px-6 py-3.5 font-medium">Variants</th>
+                    <th className="px-6 py-3.5 font-medium">Variant Prices</th>
                     <th className="px-6 py-3.5 font-medium">Status</th>
                     <th className="px-6 py-3.5 font-medium">Actions</th>
                   </tr>
@@ -342,7 +441,7 @@ const ProductsAdmin = () => {
                         <div className="flex items-center gap-3">
                           {product.images && product.images.length > 0 ? (
                             <img
-                              src={product.images[0]} // Direct Cloudinary URL
+                              src={product.images[0]}
                               alt={product.name}
                               className="w-10 h-10 object-cover bg-[#EFEAE0]"
                               onError={(e) => {
@@ -373,6 +472,9 @@ const ProductsAdmin = () => {
                       <td className="px-6 py-4 text-[#8C7B6B] text-sm">
                         {getVariantDisplay(product.variants)}
                       </td>
+                      <td className="px-6 py-4 text-[#B08D4F] text-sm font-medium">
+                        {getVariantPriceRange(product.variants) || "-"}
+                      </td>
                       <td className="px-6 py-4">
                         <span
                           className={`px-2.5 py-1 text-[10px] uppercase tracking-[0.1em] ${
@@ -394,7 +496,9 @@ const ProductsAdmin = () => {
                             <Edit className="w-4 h-4" strokeWidth={1.5} />
                           </button>
                           <button
-                            onClick={() => handleDelete(product._id)}
+                            onClick={() =>
+                              handleDelete(product._id, product.name)
+                            }
                             className="p-1.5 text-[#8C4B3A] hover:bg-[#8C4B3A]/10 transition-colors"
                             aria-label="Delete product"
                           >
@@ -655,7 +759,7 @@ const ProductsAdmin = () => {
                       name="price"
                       value={newVariant.price}
                       onChange={handleVariantInputChange}
-                      placeholder="Variant Price (KES)"
+                      placeholder="Variant Price (KES) - Optional"
                       className="w-full px-3 py-2 bg-white border border-[#E6DFD1] text-sm focus:outline-none focus:border-[#B08D4F] transition-colors mb-2"
                     />
 
@@ -689,11 +793,11 @@ const ProductsAdmin = () => {
                                 </span>{" "}
                                 {variant.stock}
                               </span>
-                              {variant.price > 0 && (
-                                <span className="text-xs font-medium text-[#B08D4F]">
-                                  KES {variant.price}
-                                </span>
-                              )}
+                              <span className="text-xs font-medium text-[#B08D4F]">
+                                {variant.price > 0
+                                  ? formatCurrency(variant.price)
+                                  : "Base price"}
+                              </span>
                             </div>
                             <button
                               type="button"
@@ -705,6 +809,11 @@ const ProductsAdmin = () => {
                           </div>
                         ))}
                       </div>
+                    )}
+                    {formData.variants.length > 0 && (
+                      <p className="text-xs text-[#8C7B6B] mt-2 tracking-wide">
+                        {formData.variants.length} variant(s) configured
+                      </p>
                     )}
                   </div>
                 )}

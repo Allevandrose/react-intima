@@ -1,20 +1,5 @@
 /**
  * ShopPage — luxury boutique redesign
- * ------------------------------------------------------------------
- * Fonts used: "Fraunces" (display serif) + "Work Sans" (body/UI).
- * For best performance, add these to your public/index.html <head>
- * instead of relying on the inline @import below:
- *
- * <link rel="preconnect" href="https://fonts.googleapis.com">
- * <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
- * <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;0,9..144,600;1,9..144,400&family=Work+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
- *
- * The inline <style> tag below is left in as a safe fallback so the
- * page still looks right even if you forget to add the link tags.
- *
- * All data logic (redux, routing, cart, filters, pagination) is
- * untouched — only markup/classNames changed.
- * ------------------------------------------------------------------
  */
 import React, { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
@@ -29,6 +14,7 @@ import { addToCart } from "../../redux/slices/cartSlice";
 import { getImageUrl } from "../../api";
 import { ShoppingBag, Filter, X, Sparkles } from "lucide-react";
 import toast from "react-hot-toast";
+import Swal from "sweetalert2";
 
 const ShopPage = () => {
   const dispatch = useDispatch();
@@ -88,11 +74,18 @@ const ShopPage = () => {
     setShowFilters(false);
   };
 
-  // ✅ Updated function with stock and variant validations
-  const handleAddToCart = (product) => {
+  // ✅ Updated with SweetAlert
+  const handleAddToCart = async (product) => {
     // Check base product stock
     if (product.stock === 0) {
-      toast.error(`${product.name} is out of stock`);
+      await Swal.fire({
+        icon: "error",
+        title: "Out of Stock",
+        text: `${product.name} is currently out of stock.`,
+        background: "#F7F3EA",
+        iconColor: "#8C4B3A",
+        confirmButtonColor: "#14120F",
+      });
       return;
     }
 
@@ -111,7 +104,14 @@ const ShopPage = () => {
         (v) => v.size === firstVariant.size && v.color === firstVariant.color,
       );
       if (variant && variant.stock === 0) {
-        toast.error(`${product.name} is out of stock`);
+        await Swal.fire({
+          icon: "error",
+          title: "Out of Stock",
+          text: `${product.name} - ${firstVariant.color} ${firstVariant.size} is out of stock.`,
+          background: "#F7F3EA",
+          iconColor: "#8C4B3A",
+          confirmButtonColor: "#14120F",
+        });
         return;
       }
     }
@@ -123,7 +123,18 @@ const ShopPage = () => {
         selectedVariant: firstVariant,
       }),
     );
-    toast.success("Added to cart!");
+
+    // ✅ SweetAlert success
+    await Swal.fire({
+      icon: "success",
+      title: "Added to Bag!",
+      text: `${product.name} has been added to your bag.`,
+      timer: 2000,
+      showConfirmButton: false,
+      background: "#F7F3EA",
+      iconColor: "#B08D4F",
+      timerProgressBar: true,
+    });
   };
 
   const handlePageChange = (newPage) => {
@@ -143,14 +154,13 @@ const ShopPage = () => {
 
   return (
     <div className="min-h-screen bg-[#F7F3EA] font-['Work_Sans']">
-      {/* Fallback font import — prefer adding the <link> tags in index.html */}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;0,9..144,600;1,9..144,400&family=Work+Sans:wght@300;400;500;600&display=swap');
         .font-display { font-family: 'Fraunces', serif; }
       `}</style>
 
       <div className="max-w-7xl mx-auto px-5 sm:px-8 py-10 sm:py-14">
-        {/* ---------- Header ---------- */}
+        {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-6 mb-10 sm:mb-14 border-b border-[#E6DFD1] pb-8">
           <div>
             <p className="flex items-center gap-2 text-[11px] tracking-[0.25em] uppercase text-[#B08D4F] font-medium mb-3">
@@ -174,7 +184,7 @@ const ShopPage = () => {
           </button>
         </div>
 
-        {/* ---------- Filter Drawer ---------- */}
+        {/* Filter Drawer - same as before */}
         {showFilters && (
           <div className="fixed inset-0 bg-[#14120F]/60 z-50 flex justify-end backdrop-blur-[2px]">
             <div className="bg-[#F7F3EA] w-full max-w-md h-full overflow-y-auto p-8 sm:p-10 shadow-2xl animate-[fadeIn_0.2s_ease-out]">
@@ -266,7 +276,7 @@ const ShopPage = () => {
           </div>
         )}
 
-        {/* ---------- Loading ---------- */}
+        {/* Loading */}
         {loading && (
           <div className="text-center py-24">
             <div className="inline-block animate-spin rounded-full h-10 w-10 border-[3px] border-[#B08D4F] border-t-transparent"></div>
@@ -276,7 +286,7 @@ const ShopPage = () => {
           </div>
         )}
 
-        {/* ---------- Error ---------- */}
+        {/* Error */}
         {error && (
           <div className="text-center py-24">
             <p className="text-[#8C4B3A] text-sm tracking-wide">{error}</p>
@@ -289,7 +299,7 @@ const ShopPage = () => {
           </div>
         )}
 
-        {/* ---------- Grid ---------- */}
+        {/* Grid - same as before with minor improvements */}
         {!loading && !error && (
           <>
             {products.length === 0 ? (
@@ -313,9 +323,10 @@ const ShopPage = () => {
                       <div className="relative aspect-[4/5] bg-[#EFEAE0] overflow-hidden">
                         {product.images && product.images.length > 0 ? (
                           <img
-                            src={product.images[0]} // Direct Cloudinary URL
+                            src={product.images[0]}
                             alt={product.name}
                             className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
+                            loading="lazy"
                             onError={(e) => {
                               e.target.onerror = null;
                               e.target.src =
@@ -333,7 +344,6 @@ const ShopPage = () => {
                           </span>
                         )}
 
-                        {/* Quick add — reveals on hover, desktop only */}
                         <button
                           onClick={(e) => {
                             e.preventDefault();
@@ -359,7 +369,6 @@ const ShopPage = () => {
                           {formatCurrency(product.price)}
                         </span>
 
-                        {/* Mobile add-to-cart (no hover state on touch) */}
                         <button
                           onClick={() => handleAddToCart(product)}
                           className="sm:hidden text-[#14120F] border border-[#D8CFBC] p-2 hover:border-[#14120F] transition-colors"
@@ -399,7 +408,7 @@ const ShopPage = () => {
               </div>
             )}
 
-            {/* ---------- Pagination ---------- */}
+            {/* Pagination */}
             {pages > 1 && (
               <div className="flex justify-center items-center gap-8 mt-16 pt-8 border-t border-[#E6DFD1]">
                 <button
