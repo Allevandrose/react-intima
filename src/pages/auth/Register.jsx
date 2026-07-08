@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { registerUser } from "../../redux/slices/authSlice";
 import toast from "react-hot-toast";
+import Swal from "sweetalert2";
 
 const Register = () => {
   const [formData, setFormData] = useState({
@@ -13,18 +14,48 @@ const Register = () => {
   });
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [passwordStrength, setPasswordStrength] = useState(0);
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { isLoading } = useSelector((state) => state.auth);
 
   const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    setFormData({ ...formData, [name]: value });
+
+    // Check password strength
+    if (name === "password") {
+      calculatePasswordStrength(value);
+    }
+  };
+
+  const calculatePasswordStrength = (password) => {
+    let strength = 0;
+    if (password.length >= 8) strength++;
+    if (password.match(/[a-z]/)) strength++;
+    if (password.match(/[A-Z]/)) strength++;
+    if (password.match(/\d/)) strength++;
+    if (password.match(/[^a-zA-Z\d]/)) strength++;
+    setPasswordStrength(strength);
+  };
+
+  const getStrengthColor = () => {
+    if (passwordStrength <= 2) return "bg-red-500";
+    if (passwordStrength <= 3) return "bg-yellow-500";
+    if (passwordStrength <= 4) return "bg-blue-500";
+    return "bg-green-500";
+  };
+
+  const getStrengthText = () => {
+    if (passwordStrength <= 2) return "Weak";
+    if (passwordStrength <= 3) return "Fair";
+    if (passwordStrength <= 4) return "Good";
+    return "Strong";
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Validate
     if (
       !formData.email ||
       !formData.phone ||
@@ -40,15 +71,20 @@ const Register = () => {
       return;
     }
 
-    if (formData.password.length < 6) {
-      toast.error("Password must be at least 6 characters");
+    // ✅ Match backend validation: 8 chars, uppercase, lowercase, number
+    if (formData.password.length < 8) {
+      toast.error("Password must be at least 8 characters");
       return;
     }
 
-    // Format phone number (remove any non-digit characters)
+    if (!formData.password.match(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/)) {
+      toast.error("Password must contain uppercase, lowercase, and a number");
+      return;
+    }
+
     const phone = formData.phone.replace(/\D/g, "");
-    if (phone.length < 10) {
-      toast.error("Please enter a valid phone number");
+    if (phone.length < 10 || phone.length > 15) {
+      toast.error("Please enter a valid phone number (10-15 digits)");
       return;
     }
 
@@ -61,6 +97,18 @@ const Register = () => {
     );
 
     if (result.success) {
+      // ✅ SweetAlert success
+      await Swal.fire({
+        icon: "success",
+        title: "Account Created!",
+        text: "Welcome to IntimaCare. Your account has been created successfully.",
+        timer: 2500,
+        showConfirmButton: false,
+        background: "#F7F3EA",
+        iconColor: "#B08D4F",
+        timerProgressBar: true,
+      });
+
       toast.success("Account created successfully!");
       navigate("/");
     } else {
@@ -77,6 +125,18 @@ const Register = () => {
           outline: none;
           border-color: #B08D4F;
           box-shadow: 0 0 0 1px #B08D4F;
+        }
+        .loading-spinner {
+          border: 2px solid rgba(255, 255, 255, 0.3);
+          border-radius: 50%;
+          border-top: 2px solid #F7F3EA;
+          width: 20px;
+          height: 20px;
+          animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
         }
       `}</style>
       <div className="max-w-md w-full space-y-8 bg-white p-8 sm:p-10 border border-[#E6DFD1]">
@@ -108,6 +168,7 @@ const Register = () => {
                 onChange={handleChange}
                 className="lux-input block w-full px-4 py-3 bg-white border border-[#D8CFBC] text-sm text-[#14120F] placeholder-[#B7AC98] transition-colors"
                 placeholder="you@example.com"
+                disabled={isLoading}
               />
             </div>
 
@@ -128,6 +189,7 @@ const Register = () => {
                 onChange={handleChange}
                 className="lux-input block w-full px-4 py-3 bg-white border border-[#D8CFBC] text-sm text-[#14120F] placeholder-[#B7AC98] transition-colors"
                 placeholder="0712345678"
+                disabled={isLoading}
               />
               <p className="mt-1.5 text-xs text-[#8C7B6B] tracking-wide">
                 For M-Pesa payments
@@ -152,18 +214,37 @@ const Register = () => {
                   onChange={handleChange}
                   className="lux-input block w-full px-4 py-3 bg-white border border-[#D8CFBC] text-sm text-[#14120F] placeholder-[#B7AC98] transition-colors"
                   placeholder="••••••••"
+                  disabled={isLoading}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute inset-y-0 right-0 pr-3 flex items-center text-sm leading-5"
+                  disabled={isLoading}
                 >
                   {showPassword ? "👁️" : "👁️‍🗨️"}
                 </button>
               </div>
-              <p className="mt-1.5 text-xs text-[#8C7B6B] tracking-wide">
-                At least 6 characters
-              </p>
+
+              {/* Password strength indicator */}
+              {formData.password && (
+                <div className="mt-2">
+                  <div className="flex items-center gap-3">
+                    <div className="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                      <div
+                        className={`h-full ${getStrengthColor()} transition-all duration-300`}
+                        style={{ width: `${(passwordStrength / 5) * 100}%` }}
+                      />
+                    </div>
+                    <span className="text-xs text-[#8C7B6B]">
+                      {getStrengthText()}
+                    </span>
+                  </div>
+                  <p className="mt-1.5 text-xs text-[#8C7B6B] tracking-wide">
+                    Must contain: 8+ chars, uppercase, lowercase, number
+                  </p>
+                </div>
+              )}
             </div>
 
             <div>
@@ -184,15 +265,23 @@ const Register = () => {
                   onChange={handleChange}
                   className="lux-input block w-full px-4 py-3 bg-white border border-[#D8CFBC] text-sm text-[#14120F] placeholder-[#B7AC98] transition-colors"
                   placeholder="••••••••"
+                  disabled={isLoading}
                 />
                 <button
                   type="button"
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                   className="absolute inset-y-0 right-0 pr-3 flex items-center text-sm leading-5"
+                  disabled={isLoading}
                 >
                   {showConfirmPassword ? "👁️" : "👁️‍🗨️"}
                 </button>
               </div>
+              {formData.confirmPassword &&
+                formData.password !== formData.confirmPassword && (
+                  <p className="mt-1.5 text-xs text-red-500">
+                    Passwords do not match
+                  </p>
+                )}
             </div>
           </div>
 
@@ -200,9 +289,16 @@ const Register = () => {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full flex justify-center bg-[#14120F] text-[#F7F3EA] py-3.5 text-xs uppercase tracking-[0.2em] hover:bg-[#1F3D33] transition-colors duration-300 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="w-full flex justify-center items-center bg-[#14120F] text-[#F7F3EA] py-3.5 text-xs uppercase tracking-[0.2em] hover:bg-[#1F3D33] transition-colors duration-300 disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              {isLoading ? "Creating Account..." : "Create Account"}
+              {isLoading ? (
+                <>
+                  <span className="loading-spinner mr-3"></span>
+                  Creating Account...
+                </>
+              ) : (
+                "Create Account"
+              )}
             </button>
           </div>
         </form>
@@ -219,7 +315,6 @@ const Register = () => {
           </p>
         </div>
 
-        {/* Privacy Note */}
         <div className="mt-2 p-3.5 bg-[#FBF9F4] border border-[#E6DFD1]">
           <p className="text-xs text-[#5C5348] text-center tracking-wide">
             🔒 Your information is secure. We never share your data with third

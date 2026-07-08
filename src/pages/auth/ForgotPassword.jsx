@@ -1,8 +1,8 @@
-// src/pages/auth/ForgotPassword.jsx
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { forgotPassword } from "../../api/auth";
 import toast from "react-hot-toast";
+import Swal from "sweetalert2";
 
 const ForgotPassword = () => {
   const [email, setEmail] = useState("");
@@ -21,6 +21,19 @@ const ForgotPassword = () => {
     try {
       await forgotPassword(email);
       setIsSent(true);
+
+      // ✅ SweetAlert success
+      await Swal.fire({
+        icon: "success",
+        title: "Reset Link Sent!",
+        text: "Check your email for the password reset link.",
+        timer: 3000,
+        showConfirmButton: false,
+        background: "#F7F3EA",
+        iconColor: "#B08D4F",
+        timerProgressBar: true,
+      });
+
       toast.success("Password reset link sent to your email");
     } catch (error) {
       toast.error(error.response?.data?.message || "Failed to send reset link");
@@ -38,6 +51,18 @@ const ForgotPassword = () => {
           outline: none;
           border-color: #B08D4F;
           box-shadow: 0 0 0 1px #B08D4F;
+        }
+        .loading-spinner {
+          border: 2px solid rgba(255, 255, 255, 0.3);
+          border-radius: 50%;
+          border-top: 2px solid #F7F3EA;
+          width: 20px;
+          height: 20px;
+          animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
         }
       `}</style>
       <div className="max-w-md w-full space-y-8 bg-white p-8 sm:p-10 border border-[#E6DFD1]">
@@ -95,15 +120,23 @@ const ForgotPassword = () => {
                 onChange={(e) => setEmail(e.target.value)}
                 className="lux-input block w-full px-4 py-3 bg-white border border-[#D8CFBC] text-sm text-[#14120F] placeholder-[#B7AC98] transition-colors"
                 placeholder="you@example.com"
+                disabled={isLoading}
               />
             </div>
 
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full flex justify-center bg-[#14120F] text-[#F7F3EA] py-3.5 text-xs uppercase tracking-[0.2em] hover:bg-[#1F3D33] transition-colors duration-300 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="w-full flex justify-center items-center bg-[#14120F] text-[#F7F3EA] py-3.5 text-xs uppercase tracking-[0.2em] hover:bg-[#1F3D33] transition-colors duration-300 disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              {isLoading ? "Sending..." : "Send Reset Link"}
+              {isLoading ? (
+                <>
+                  <span className="loading-spinner mr-3"></span>
+                  Sending...
+                </>
+              ) : (
+                "Send Reset Link"
+              )}
             </button>
 
             <div className="text-center">

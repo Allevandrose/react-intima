@@ -1,14 +1,32 @@
 import { createSlice } from "@reduxjs/toolkit";
-import { login, register, getProfile } from "../../api/auth";
-// 🆕 Added clearCartState import alongside fetchCart
+import {
+  login,
+  register,
+  getProfile,
+  logout as apiLogout,
+} from "../../api/auth";
+import { setAuthToken, getAuthToken } from "../../api/index";
 import { fetchCart, clearCartState } from "./cartSlice";
 
+// Check both localStorage and sessionStorage for token
+const getStoredToken = () => {
+  const token = localStorage.getItem("token");
+  if (token) return token;
+  return sessionStorage.getItem("token") || null;
+};
+
+const getUser = () => {
+  const user = localStorage.getItem("user");
+  return user ? JSON.parse(user) : null;
+};
+
 const initialState = {
-  user: JSON.parse(localStorage.getItem("user")) || null,
-  token: localStorage.getItem("token") || null,
-  isAuthenticated: !!localStorage.getItem("token"),
+  user: getUser(),
+  token: getStoredToken(),
+  isAuthenticated: !!getStoredToken(),
   isLoading: false,
   error: null,
+  rememberMe: false,
 };
 
 const authSlice = createSlice({
@@ -25,18 +43,25 @@ const authSlice = createSlice({
     },
     setToken: (state, action) => {
       state.token = action.payload;
-      localStorage.setItem("token", action.payload);
+      setAuthToken(action.payload, state.rememberMe);
+    },
+    setRememberMe: (state, action) => {
+      state.rememberMe = action.payload;
     },
     setError: (state, action) => {
       state.error = action.payload;
     },
-    logout: (state) => {
+    // ✅ Fixed: Rename the logout reducer to clearAuth to avoid conflict
+    clearAuth: (state) => {
       state.user = null;
       state.token = null;
       state.isAuthenticated = false;
+      state.rememberMe = false;
       localStorage.removeItem("token");
+      localStorage.removeItem("tokenExpiry");
+      localStorage.removeItem("refreshToken");
       localStorage.removeItem("user");
-      // 🆕 Note: clearCartState is handled inside the logoutUser async thunk below
+      sessionStorage.removeItem("token");
     },
     clearError: (state) => {
       state.error = null;
@@ -44,56 +69,77 @@ const authSlice = createSlice({
   },
 });
 
-export const { setLoading, setUser, setToken, setError, logout, clearError } =
-  authSlice.actions;
+// ✅ Fixed: Export actions with clearAuth instead of logout
+export const {
+  setLoading,
+  setUser,
+  setToken,
+  setError,
+  clearAuth,
+  clearError,
+  setRememberMe,
+} = authSlice.actions;
 
-// Async thunks
-
-// 🆕 Async logout thunk to cleanly clear both auth and cart states
-export const logoutUser = () => (dispatch) => {
-  dispatch(logout());
+// ✅ Fixed: Rename logoutUser thunk to use clearAuth
+export const logoutUser = () => async (dispatch) => {
+  try {
+    await apiLogout();
+  } catch (error) {
+    // Ignore errors on logout
+  }
+  dispatch(clearAuth());
   dispatch(clearCartState());
 };
 
-// 🆕 Updated with role-based cart management and role redirection payload
-export const loginUser = (credentials) => async (dispatch) => {
-  try {
-    dispatch(setLoading(true));
-    const response = await login(credentials);
-    const { token, ...user } = response.data.data;
+export const loginUser =
+  (credentials, rememberMe = false) =>
+  async (dispatch) => {
+    try {
+      dispatch(setLoading(true));
+      dispatch(setRememberMe(rememberMe));
 
-    dispatch(setToken(token));
-    dispatch(setUser(user));
+      const response = await login(credentials);
+      const { token, refreshToken, ...user } = response.data.data;
 
-    // 🆕 Fetch cart only if user is NOT admin
-    if (user.role !== "admin") {
-      await dispatch(fetchCart());
-    } else {
-      // 🆕 Clear cart for admin users
-      dispatch(clearCartState());
+      dispatch(setToken(token));
+      dispatch(setUser(user));
+
+      // Store refresh token
+      if (refreshToken) {
+        localStorage.setItem("refreshToken", refreshToken);
+      }
+
+      // Fetch cart only if not admin
+      if (user.role !== "admin") {
+        await dispatch(fetchCart());
+      } else {
+        dispatch(clearCartState());
+      }
+
+      dispatch(setLoading(false));
+      return { success: true, role: user.role, user };
+    } catch (error) {
+      dispatch(setError(error.response?.data?.message || "Login failed"));
+      dispatch(setLoading(false));
+      return { success: false, error: error.response?.data?.message };
     }
-
-    dispatch(setLoading(false));
-
-    // 🆕 Return role for redirection
-    return { success: true, role: user.role };
-  } catch (error) {
-    dispatch(setError(error.response?.data?.message || "Login failed"));
-    dispatch(setLoading(false));
-    return { success: false, error: error.response?.data?.message };
-  }
-};
+  };
 
 export const registerUser = (userData) => async (dispatch) => {
   try {
     dispatch(setLoading(true));
     const response = await register(userData);
-    const { token, ...user } = response.data.data;
+    const { token, refreshToken, ...user } = response.data.data;
+
     dispatch(setToken(token));
     dispatch(setUser(user));
 
+    if (refreshToken) {
+      localStorage.setItem("refreshToken", refreshToken);
+    }
+
     dispatch(setLoading(false));
-    return { success: true };
+    return { success: true, user };
   } catch (error) {
     dispatch(setError(error.response?.data?.message || "Registration failed"));
     dispatch(setLoading(false));
@@ -103,21 +149,24 @@ export const registerUser = (userData) => async (dispatch) => {
 
 export const loadUser = () => async (dispatch) => {
   try {
-    const token = localStorage.getItem("token");
-    if (!token) return;
+    const token = getAuthToken();
+    if (!token) {
+      // Check session storage
+      const sessionToken = sessionStorage.getItem("token");
+      if (!sessionToken) return;
+    }
 
     const response = await getProfile();
     const user = response.data.data;
     dispatch(setUser(user));
 
-    // 🆕 Added role check to loadUser as well to keep behaviors consistent on refresh
     if (user.role !== "admin") {
       dispatch(fetchCart());
     } else {
       dispatch(clearCartState());
     }
   } catch (error) {
-    dispatch(logoutUser()); // Updated to clean up cart states on invalid session tokens too
+    dispatch(logoutUser());
   }
 };
 

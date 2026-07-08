@@ -1,4 +1,3 @@
-// src/api/auth.js
 import api from "./index";
 
 export const register = (userData) => {
@@ -17,11 +16,20 @@ export const updateProfile = (data) => {
   return api.put("/auth/me", data);
 };
 
-// New auth endpoints
 export const forgotPassword = (email) => {
   return api.post("/auth/forgot-password", { email });
 };
 
 export const resetPassword = (token, password) => {
   return api.post(`/auth/reset-password/${token}`, { password });
+};
+
+// ✅ NEW: Refresh token
+export const refreshToken = (refreshToken) => {
+  return api.post("/auth/refresh-token", { refreshToken });
+};
+
+// ✅ NEW: Logout
+export const logout = () => {
+  return api.post("/auth/logout");
 };

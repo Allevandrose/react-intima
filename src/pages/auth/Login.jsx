@@ -1,8 +1,9 @@
 import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { loginUser } from "../../redux/slices/authSlice";
 import toast from "react-hot-toast";
+import Swal from "sweetalert2";
 
 const Login = () => {
   const [formData, setFormData] = useState({
@@ -10,15 +11,19 @@ const Login = () => {
     password: "",
   });
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const location = useLocation();
   const { isLoading } = useSelector((state) => state.auth);
+
+  // Get intended redirect path
+  const from = location.state?.from?.pathname || "/";
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  // 🆕 Updated handleSubmit with role-based routing checks
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -27,17 +32,28 @@ const Login = () => {
       return;
     }
 
-    const result = await dispatch(loginUser(formData));
+    const result = await dispatch(loginUser(formData, rememberMe));
 
     if (result.success) {
+      // ✅ SweetAlert success
+      await Swal.fire({
+        icon: "success",
+        title: "Welcome Back!",
+        text: `Hello ${result.user?.email || "User"}`,
+        timer: 2000,
+        showConfirmButton: false,
+        background: "#F7F3EA",
+        iconColor: "#B08D4F",
+        timerProgressBar: true,
+      });
+
       toast.success("Welcome back!");
 
-      // 🆕 Redirect based on user role from localStorage
-      const user = JSON.parse(localStorage.getItem("user"));
-      if (user?.role === "admin") {
+      // Redirect based on role
+      if (result.role === "admin") {
         navigate("/admin");
       } else {
-        navigate("/");
+        navigate(from);
       }
     } else {
       toast.error(result.error || "Login failed");
@@ -56,6 +72,18 @@ const Login = () => {
         }
         .lux-checkbox {
           accent-color: #14120F;
+        }
+        .loading-spinner {
+          border: 2px solid rgba(255, 255, 255, 0.3);
+          border-radius: 50%;
+          border-top: 2px solid #F7F3EA;
+          width: 20px;
+          height: 20px;
+          animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
         }
       `}</style>
       <div className="max-w-md w-full space-y-8 bg-white p-8 sm:p-10 border border-[#E6DFD1]">
@@ -87,6 +115,7 @@ const Login = () => {
                 onChange={handleChange}
                 className="lux-input block w-full px-4 py-3 bg-white border border-[#D8CFBC] text-sm text-[#14120F] placeholder-[#B7AC98] transition-colors"
                 placeholder="you@example.com"
+                disabled={isLoading}
               />
             </div>
 
@@ -108,11 +137,13 @@ const Login = () => {
                   onChange={handleChange}
                   className="lux-input block w-full px-4 py-3 bg-white border border-[#D8CFBC] text-sm text-[#14120F] placeholder-[#B7AC98] transition-colors"
                   placeholder="••••••••"
+                  disabled={isLoading}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute inset-y-0 right-0 pr-3 flex items-center text-sm leading-5"
+                  disabled={isLoading}
                 >
                   {showPassword ? "👁️" : "👁️‍🗨️"}
                 </button>
@@ -126,7 +157,10 @@ const Login = () => {
                 id="remember-me"
                 name="remember-me"
                 type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
                 className="lux-checkbox h-4 w-4 border-[#D8CFBC]"
+                disabled={isLoading}
               />
               <label
                 htmlFor="remember-me"
@@ -150,9 +184,16 @@ const Login = () => {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full flex justify-center bg-[#14120F] text-[#F7F3EA] py-3.5 text-xs uppercase tracking-[0.2em] hover:bg-[#1F3D33] transition-colors duration-300 disabled:opacity-40 disabled:cursor-not-allowed"
+              className="w-full flex justify-center items-center bg-[#14120F] text-[#F7F3EA] py-3.5 text-xs uppercase tracking-[0.2em] hover:bg-[#1F3D33] transition-colors duration-300 disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              {isLoading ? "Signing in..." : "Sign In"}
+              {isLoading ? (
+                <>
+                  <span className="loading-spinner mr-3"></span>
+                  Signing in...
+                </>
+              ) : (
+                "Sign In"
+              )}
             </button>
           </div>
         </form>
@@ -169,7 +210,6 @@ const Login = () => {
           </p>
         </div>
 
-        {/* Discreet Note */}
         <div className="mt-2 p-3.5 bg-[#FBF9F4] border border-[#E6DFD1]">
           <p className="text-xs text-[#5C5348] text-center tracking-wide">
             🔒 Your privacy is our priority. All information is encrypted and
