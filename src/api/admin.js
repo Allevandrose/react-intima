@@ -1,25 +1,32 @@
-import api from './index';
+import api from "./index";
 
 // Dashboard Stats
 export const getDashboardStats = () => {
-  return api.get('/admin/stats');
+  return api.get("/admin/stats");
 };
 
-// Products (Admin) - with FormData support
+// Products (Admin) - with FormData support for images
 export const createProduct = (data) => {
-  return api.post('/products', data, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
-  });
+  // If data is FormData, use it directly
+  if (data instanceof FormData) {
+    return api.post("/products", data, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
+  }
+  return api.post("/products", data);
 };
 
 export const updateProduct = (id, data) => {
-  return api.put(`/products/${id}`, data, {
-    headers: {
-      'Content-Type': 'multipart/form-data',
-    },
-  });
+  if (data instanceof FormData) {
+    return api.put(`/products/${id}`, data, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
+  }
+  return api.put(`/products/${id}`, data);
 };
 
 export const deleteProduct = (id) => {
@@ -28,7 +35,7 @@ export const deleteProduct = (id) => {
 
 // Categories (Admin)
 export const createCategory = (data) => {
-  return api.post('/categories', data);
+  return api.post("/categories", data);
 };
 
 export const updateCategory = (id, data) => {
@@ -41,7 +48,7 @@ export const deleteCategory = (id) => {
 
 // Orders (Admin)
 export const getAllOrders = (params) => {
-  return api.get('/orders', { params });
+  return api.get("/orders", { params });
 };
 
 export const updateOrderStatus = (id, data) => {

@@ -1,7 +1,7 @@
-import api from './index';
+import api from "./index";
 
 export const getProducts = (params) => {
-  return api.get('/products', { params });
+  return api.get("/products", { params });
 };
 
 export const getProduct = (slug) => {
@@ -9,15 +9,31 @@ export const getProduct = (slug) => {
 };
 
 export const getFeaturedProducts = () => {
-  return api.get('/products?isFeatured=true');
+  return api.get("/products?isFeatured=true");
 };
 
-// Admin only
+// Admin only - with image upload support
 export const createProduct = (data) => {
-  return api.post('/products', data);
+  // If data has files, use FormData
+  if (data instanceof FormData) {
+    return api.post("/products", data, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
+  }
+  return api.post("/products", data);
 };
 
 export const updateProduct = (id, data) => {
+  // If data has files, use FormData
+  if (data instanceof FormData) {
+    return api.put(`/products/${id}`, data, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
+  }
   return api.put(`/products/${id}`, data);
 };
 

@@ -313,7 +313,7 @@ const ShopPage = () => {
                       <div className="relative aspect-[4/5] bg-[#EFEAE0] overflow-hidden">
                         {product.images && product.images.length > 0 ? (
                           <img
-                            src={getImageUrl(product.images[0])}
+                            src={product.images[0]} // Direct Cloudinary URL
                             alt={product.name}
                             className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
                             onError={(e) => {

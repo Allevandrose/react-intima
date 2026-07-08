@@ -183,7 +183,7 @@ const OrdersPage = () => {
                           {item.product?.images &&
                           item.product.images.length > 0 ? (
                             <img
-                              src={getImageUrl(item.product.images[0])}
+                              src={item.product.images[0]} // Direct Cloudinary URL
                               alt={item.name}
                               className="w-full h-full object-cover"
                               onError={(e) => {

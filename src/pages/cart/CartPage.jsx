@@ -188,7 +188,7 @@ const CartPage = () => {
                           <div className="w-16 h-20 bg-[#EFEAE0] flex items-center justify-center flex-shrink-0 overflow-hidden">
                             {item.image ? (
                               <img
-                                src={getImageUrl(item.image)}
+                                src={item.image} // Direct Cloudinary URL
                                 alt={item.name}
                                 className="w-full h-full object-cover"
                                 onError={(e) => {

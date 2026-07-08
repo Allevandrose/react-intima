@@ -13,12 +13,10 @@ const api = axios.create({
   withCredentials: true,
 });
 
-// ✅ EXPORT THIS - getAuthToken is needed by App.jsx
 export const getAuthToken = () => {
   return localStorage.getItem("token");
 };
 
-// ✅ EXPORT THIS - For completeness
 export const setAuthToken = (token) => {
   if (token) {
     localStorage.setItem("token", token);
@@ -29,9 +27,10 @@ export const setAuthToken = (token) => {
   }
 };
 
-// ✅ EXPORT THIS - Get full image URL
+// ✅ UPDATED: Get full image URL - now handles Cloudinary URLs
 export const getImageUrl = (path) => {
   if (!path) return null;
+  // If it's already a full URL (Cloudinary), return as is
   if (path.startsWith("http")) return path;
   if (path.startsWith("/uploads")) {
     return `${BASE_URL}${path}`;
@@ -58,7 +57,6 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       localStorage.removeItem("token");
       localStorage.removeItem("user");
-      // Only redirect if not already on login page
       if (
         !window.location.pathname.includes("/login") &&
         !window.location.pathname.includes("/register") &&
@@ -71,5 +69,4 @@ api.interceptors.response.use(
   },
 );
 
-// ✅ DEFAULT EXPORT - This is the main export
 export default api;

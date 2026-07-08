@@ -8,9 +8,9 @@
  * tables and forms read better in a plain grotesque at small sizes).
  * Add to public/index.html for best performance:
  *
- *   <link rel="preconnect" href="https://fonts.googleapis.com">
- *   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
- *   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500&family=Work+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+ * <link rel="preconnect" href="https://fonts.googleapis.com">
+ * <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+ * <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500&family=Work+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
  *
  * All state, handlers, API calls, and redux logic are untouched —
  * only markup/classNames changed.
@@ -21,7 +21,6 @@ import { useDispatch, useSelector } from "react-redux";
 import { fetchProducts } from "../../redux/slices/productsSlice";
 import { fetchCategories } from "../../redux/slices/categoriesSlice";
 import { createProduct, updateProduct, deleteProduct } from "../../api/admin";
-import { getImageUrl } from "../../api";
 import Sidebar from "../../components/admin/Sidebar";
 import {
   Plus,
@@ -104,7 +103,7 @@ const ProductsAdmin = () => {
     setImageFiles(newFiles);
 
     const previews = newFiles.map((file) =>
-      file instanceof File ? URL.createObjectURL(file) : getImageUrl(file),
+      file instanceof File ? URL.createObjectURL(file) : file,
     );
     setImagePreviews(previews);
   };
@@ -223,7 +222,7 @@ const ProductsAdmin = () => {
 
     // Get image paths from product
     const existingImages = product.images || [];
-    const existingPreviews = existingImages.map((img) => getImageUrl(img));
+    const existingPreviews = existingImages.map((img) => img);
 
     setFormData({
       name: product.name,
@@ -343,7 +342,7 @@ const ProductsAdmin = () => {
                         <div className="flex items-center gap-3">
                           {product.images && product.images.length > 0 ? (
                             <img
-                              src={getImageUrl(product.images[0])}
+                              src={product.images[0]} // Direct Cloudinary URL
                               alt={product.name}
                               className="w-10 h-10 object-cover bg-[#EFEAE0]"
                               onError={(e) => {

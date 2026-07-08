@@ -1,23 +1,9 @@
-/**
- * ProductDetail — luxury boutique redesign (matches ShopPage)
- * ------------------------------------------------------------------
- * Fonts: "Fraunces" (display serif) + "Work Sans" (body/UI).
- * Add these to public/index.html for best performance:
- *
- * <link rel="preconnect" href="https://fonts.googleapis.com">
- * <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
- * <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;0,9..144,600;1,9..144,400&family=Work+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
- *
- * All data logic (redux, variant selection, quantity, cart, routing)
- * is untouched — only markup/classNames changed.
- * ------------------------------------------------------------------
- */
 import React, { useEffect, useState } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchProduct } from "../../redux/slices/productsSlice";
 import { addToCart } from "../../redux/slices/cartSlice";
-import { getImageUrl } from "../../api";
+import { getOptimizedImage } from "../../utils/imageHelpers";
 import {
   ShoppingBag,
   ArrowLeft,
@@ -92,7 +78,6 @@ const ProductDetail = () => {
   const handleAddToCart = () => {
     const availableStock = getCurrentStock();
 
-    // ✅ Check stock before adding
     if (availableStock === 0) {
       toast.error("Product is out of stock");
       return;
@@ -155,6 +140,16 @@ const ProductDetail = () => {
   const sizes = getAvailableSizes();
   const hasVariants = product.variants && product.variants.length > 0;
 
+  // ✅ Get optimized image URL
+  const getImageUrl = (imagePath) => {
+    if (!imagePath) return "https://via.placeholder.com/600x750?text=No+Image";
+    // If it's a Cloudinary URL, use it directly (it's already optimized)
+    if (imagePath.includes("cloudinary.com")) {
+      return imagePath;
+    }
+    return imagePath;
+  };
+
   return (
     <div className="min-h-screen bg-[#F7F3EA] font-['Work_Sans']">
       <style>{`
@@ -177,8 +172,9 @@ const ProductDetail = () => {
             <div className="bg-[#EFEAE0] overflow-hidden aspect-[4/5]">
               <img
                 src={
-                  getImageUrl(product.images?.[selectedImage]) ||
-                  "https://via.placeholder.com/600x750?text=No+Image"
+                  product.images?.[selectedImage]
+                    ? product.images[selectedImage] // Cloudinary URL
+                    : "https://via.placeholder.com/600x750?text=No+Image"
                 }
                 alt={product.name}
                 className="w-full h-full object-cover"
@@ -202,7 +198,7 @@ const ProductDetail = () => {
                     }`}
                   >
                     <img
-                      src={getImageUrl(img)}
+                      src={img} // Cloudinary URL
                       alt={`${product.name} ${index + 1}`}
                       className="w-full h-full object-cover"
                       onError={(e) => {
@@ -217,7 +213,7 @@ const ProductDetail = () => {
             )}
           </div>
 
-          {/* Product Info */}
+          {/* Product Info - Rest of component stays the same */}
           <div className="space-y-7">
             {product.isFeatured && (
               <span className="inline-block border border-[#B08D4F] text-[#B08D4F] text-[10px] uppercase tracking-[0.2em] px-3 py-1.5">
@@ -243,7 +239,7 @@ const ProductDetail = () => {
               </div>
             </div>
 
-            {/* Stock Status */}
+            {/* Rest of the component remains the same */}
             <div className="flex items-center gap-2">
               {getCurrentStock() > 0 ? (
                 <span className="text-[#1F3D33] text-xs uppercase tracking-[0.15em] font-medium">
@@ -260,7 +256,7 @@ const ProductDetail = () => {
               {product.description}
             </p>
 
-            {/* Variants */}
+            {/* Variants section - same as before */}
             {hasVariants && (
               <div className="space-y-6">
                 {colors.length > 0 && (
@@ -343,7 +339,7 @@ const ProductDetail = () => {
               </div>
             )}
 
-            {/* Quantity Selector */}
+            {/* Quantity and Add to Cart - same as before */}
             <div>
               <h3 className="text-[11px] uppercase tracking-[0.2em] text-[#8C7B6B] mb-3">
                 Quantity
@@ -377,7 +373,6 @@ const ProductDetail = () => {
               </div>
             </div>
 
-            {/* Add to Cart */}
             <button
               onClick={handleAddToCart}
               disabled={getCurrentStock() === 0}

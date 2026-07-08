@@ -2,12 +2,17 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { useDispatch } from "react-redux";
 import { addToCart } from "../../redux/slices/cartSlice";
+import { getOptimizedImage } from "../../utils/imageHelpers";
 import { ShoppingBag } from "lucide-react";
 import toast from "react-hot-toast";
-import { getImageUrl } from "../../api";
 
 const ProductCard = ({ product }) => {
   const dispatch = useDispatch();
+
+  // ✅ Use Cloudinary optimized image
+  const imageUrl = product?.images?.[0]
+    ? getOptimizedImage(product.images[0], "small")
+    : "/placeholder-image.png";
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat("en-KE", {
@@ -17,87 +22,83 @@ const ProductCard = ({ product }) => {
     }).format(amount);
   };
 
-  const handleAddToCart = () => {
-    // Get first variant if available
-    const firstVariant =
-      product.variants && product.variants.length > 0
-        ? {
-            size: product.variants[0].size || "",
-            color: product.variants[0].color || "",
-            priceAdjustment: product.variants[0].price || 0,
-          }
-        : null;
+  const handleAddToCart = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (product.stock === 0) {
+      toast.error("Out of stock");
+      return;
+    }
 
     dispatch(
       addToCart({
         productId: product._id,
         quantity: 1,
-        selectedVariant: firstVariant,
+        selectedVariant: null,
       }),
     );
     toast.success("Added to cart!");
   };
 
   return (
-    <div className="bg-white rounded-xl shadow-md hover:shadow-xl transition-all duration-300 overflow-hidden">
+    <div className="group">
       <Link to={`/product/${product.slug}`}>
-        <div className="relative h-64 bg-gray-100">
-          {product.images && product.images.length > 0 ? (
-            <img
-              src={getImageUrl(product.images[0])}
-              alt={product.name}
-              className="w-full h-full object-cover"
-              onError={(e) => {
-                e.target.src =
-                  "https://via.placeholder.com/400x400?text=No+Image";
-              }}
-            />
-          ) : (
-            <div className="flex items-center justify-center h-full text-gray-400">
-              No Image
-            </div>
-          )}
+        <div className="relative aspect-[4/5] bg-[#EFEAE0] overflow-hidden">
+          <img
+            src={imageUrl}
+            alt={product.name}
+            className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
+            loading="lazy"
+            onError={(e) => {
+              e.target.onerror = null;
+              e.target.src = "/placeholder-image.png";
+            }}
+          />
           {product.isFeatured && (
-            <span className="absolute top-2 right-2 bg-yellow-500 text-white text-xs font-semibold px-3 py-1 rounded-full">
+            <span className="absolute top-3 left-3 border border-[#B08D4F] text-[#B08D4F] bg-[#F7F3EA]/90 text-[10px] uppercase tracking-[0.2em] px-3 py-1.5">
               Featured
             </span>
           )}
+
+          {/* Quick add button */}
+          <button
+            onClick={handleAddToCart}
+            className="absolute bottom-0 left-0 right-0 bg-[#14120F] text-[#F7F3EA] py-3 text-xs uppercase tracking-[0.2em] translate-y-full group-hover:translate-y-0 transition-transform duration-300 flex items-center justify-center gap-2"
+          >
+            <ShoppingBag className="w-4 h-4" />
+            Add to Bag
+          </button>
         </div>
       </Link>
 
-      <div className="p-4">
+      <div className="pt-4">
         <Link to={`/product/${product.slug}`}>
-          <h3 className="font-semibold text-gray-800 hover:text-primary-600 transition-colors line-clamp-2">
+          <h3 className="font-display text-lg text-[#14120F] leading-snug line-clamp-2 group-hover:text-[#1F3D33] transition-colors">
             {product.name}
           </h3>
         </Link>
 
         <div className="flex items-center justify-between mt-2">
-          <span className="text-xl font-bold text-primary-600">
+          <span className="text-[#B08D4F] font-medium tracking-wide">
             {formatCurrency(product.price)}
           </span>
-          <button
-            onClick={handleAddToCart}
-            className="bg-primary-600 text-white p-2 rounded-lg hover:bg-primary-700 transition-colors"
-          >
-            <ShoppingBag className="w-5 h-5" />
-          </button>
         </div>
 
         {product.variants && product.variants.length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-1">
-            {[...new Set(product.variants.map((v) => v.color))]
+          <div className="mt-3 flex flex-wrap items-center gap-1.5">
+            {[...new Set(product.variants.map((v) => v.color).filter(Boolean))]
               .slice(0, 3)
               .map((color, idx) => (
                 <span
                   key={idx}
-                  className="w-4 h-4 rounded-full border border-gray-300"
+                  className="w-3.5 h-3.5 rounded-full border border-[#D8CFBC]"
                   style={{ backgroundColor: color.toLowerCase() }}
                   title={color}
                 />
               ))}
             {product.variants.length > 3 && (
-              <span className="text-xs text-gray-500">
+              <span className="text-[11px] text-[#8C7B6B] tracking-wide">
                 +{product.variants.length - 3}
               </span>
             )}
