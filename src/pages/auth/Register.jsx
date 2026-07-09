@@ -23,7 +23,6 @@ const Register = () => {
     const { name, value } = e.target;
     setFormData({ ...formData, [name]: value });
 
-    // Check password strength
     if (name === "password") {
       calculatePasswordStrength(value);
     }
@@ -53,9 +52,20 @@ const Register = () => {
     return "Strong";
   };
 
+  const validateKenyanPhone = (phone) => {
+    // Remove all non-digits
+    const cleaned = phone.replace(/\D/g, "");
+
+    // Check if it's a valid Kenyan phone number
+    // Matches: 07XX XXX XXX or 2547XX XXX XXX or 2541XX XXX XXX
+    const kenyanRegex = /^(?:254|0)?([17]\d{8})$/;
+    return kenyanRegex.test(cleaned);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    // Client-side validation
     if (
       !formData.email ||
       !formData.phone ||
@@ -71,48 +81,75 @@ const Register = () => {
       return;
     }
 
-    // ✅ Match backend validation: 8 chars, uppercase, lowercase, number
     if (formData.password.length < 8) {
       toast.error("Password must be at least 8 characters");
       return;
     }
 
     if (!formData.password.match(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/)) {
-      toast.error("Password must contain uppercase, lowercase, and a number");
+      toast.error(
+        "Password must contain at least one uppercase letter, one lowercase letter, and one number",
+      );
       return;
     }
 
+    // Clean phone number
     const phone = formData.phone.replace(/\D/g, "");
     if (phone.length < 10 || phone.length > 15) {
       toast.error("Please enter a valid phone number (10-15 digits)");
       return;
     }
 
-    const result = await dispatch(
-      registerUser({
-        email: formData.email,
-        phone: phone,
-        password: formData.password,
-      }),
-    );
+    if (!validateKenyanPhone(formData.phone)) {
+      toast.error(
+        "Please enter a valid Kenyan phone number (e.g., 0712345678)",
+      );
+      return;
+    }
 
-    if (result.success) {
-      // ✅ SweetAlert success
-      await Swal.fire({
-        icon: "success",
-        title: "Account Created!",
-        text: "Welcome to IntimaCare. Your account has been created successfully.",
-        timer: 2500,
-        showConfirmButton: false,
-        background: "#F7F3EA",
-        iconColor: "#B08D4F",
-        timerProgressBar: true,
-      });
+    try {
+      // ✅ FIX: Send confirmPassword to backend for validation
+      const result = await dispatch(
+        registerUser({
+          email: formData.email.trim().toLowerCase(),
+          phone: phone,
+          password: formData.password,
+          confirmPassword: formData.confirmPassword, // This was missing!
+        }),
+      );
 
-      toast.success("Account created successfully!");
-      navigate("/");
-    } else {
-      toast.error(result.error || "Registration failed");
+      if (result.success) {
+        await Swal.fire({
+          icon: "success",
+          title: "Account Created!",
+          text:
+            result.message ||
+            "Welcome to IntimaCare. Your account has been created successfully.",
+          timer: 2500,
+          showConfirmButton: false,
+          background: "#F7F3EA",
+          iconColor: "#B08D4F",
+          timerProgressBar: true,
+        });
+
+        toast.success("Account created successfully!");
+        navigate("/");
+      } else {
+        // Show specific error messages from server
+        if (result.field === "email") {
+          toast.error("This email is already registered");
+        } else if (result.field === "phone") {
+          toast.error("This phone number is already registered");
+        } else if (result.errors && result.errors.length > 0) {
+          const firstError = result.errors[0];
+          toast.error(firstError.message || firstError);
+        } else {
+          toast.error(result.error || "Registration failed");
+        }
+      }
+    } catch (error) {
+      console.error("Registration error:", error);
+      toast.error("An unexpected error occurred. Please try again.");
     }
   };
 
@@ -192,7 +229,7 @@ const Register = () => {
                 disabled={isLoading}
               />
               <p className="mt-1.5 text-xs text-[#8C7B6B] tracking-wide">
-                For M-Pesa payments
+                For M-Pesa payments (e.g., 0712345678)
               </p>
             </div>
 
@@ -226,7 +263,6 @@ const Register = () => {
                 </button>
               </div>
 
-              {/* Password strength indicator */}
               {formData.password && (
                 <div className="mt-2">
                   <div className="flex items-center gap-3">

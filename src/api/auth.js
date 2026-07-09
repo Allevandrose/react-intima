@@ -24,12 +24,10 @@ export const resetPassword = (token, password) => {
   return api.post(`/auth/reset-password/${token}`, { password });
 };
 
-// ✅ NEW: Refresh token
 export const refreshToken = (refreshToken) => {
   return api.post("/auth/refresh-token", { refreshToken });
 };
 
-// ✅ NEW: Logout
 export const logout = () => {
   return api.post("/auth/logout");
 };
