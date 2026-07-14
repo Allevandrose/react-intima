@@ -409,4 +409,7 @@ export const {
   clearCartError,
 } = cartSlice.actions;
 
+// ✅ Add this alias for backward compatibility
+export const clearCart = clearCartState;
+
 export default cartSlice.reducer;
