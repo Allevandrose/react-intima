@@ -14,10 +14,8 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 
-// ✅ Import the configured api instance (NOT axios directly)
+// ✅ Import the configured api instance
 import api from "../../api/index";
-import { createOrder } from "../../api/orders";
-import { initiatePayment } from "../../api/payments";
 
 // ✅ Import selectors from cartSlice
 import {
@@ -25,10 +23,8 @@ import {
   selectSubtotal,
   selectShipping,
   selectTotal,
+  clearCartState,
 } from "../../redux/slices/cartSlice";
-
-// ✅ Import clear cart action
-import { clearCart } from "../../redux/slices/cartSlice";
 
 const CheckoutPage = () => {
   const navigate = useNavigate();
@@ -45,7 +41,7 @@ const CheckoutPage = () => {
   // ✅ Local state management
   const [isProcessing, setIsProcessing] = useState(false);
   const [checkoutError, setCheckoutError] = useState(null);
-  const [checkoutStep, setCheckoutStep] = useState("idle"); // idle | creating | paying | redirecting
+  const [checkoutStep, setCheckoutStep] = useState("idle");
 
   const [formData, setFormData] = useState({
     street: "",
@@ -168,8 +164,8 @@ const CheckoutPage = () => {
       // ─── Step 1: Create Order ───
       setCheckoutStep("creating");
 
-      // ✅ Use the configured api instance instead of axios directly
-      const orderResponse = await createOrder(orderData);
+      // ✅ Use the configured api instance - token is automatically added
+      const orderResponse = await api.post("/orders", orderData);
 
       console.log("✅ Order created:", orderResponse.data);
 
@@ -184,8 +180,10 @@ const CheckoutPage = () => {
       setCheckoutStep("paying");
       console.log("💳 Initiating payment for order:", order._id);
 
-      // ✅ Use the configured api instance
-      const paymentResponse = await initiatePayment(order._id);
+      // ✅ Use the configured api instance - token is automatically added
+      const paymentResponse = await api.post("/payments/initiate", {
+        orderId: order._id,
+      });
 
       console.log("💳 Payment response:", paymentResponse.data);
 
@@ -202,8 +200,8 @@ const CheckoutPage = () => {
         setCheckoutStep("redirecting");
         console.log("🔗 Redirecting to payment URL:", paymentData.paymentUrl);
 
-        // Clear cart after successful order
-        dispatch(clearCart());
+        // ✅ Clear cart after successful order
+        dispatch(clearCartState());
 
         setTimeout(() => {
           window.location.href = paymentData.paymentUrl;
