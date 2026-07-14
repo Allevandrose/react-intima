@@ -1,65 +1,65 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useDispatch } from "react-redux";
 import { clearCartThunk } from "../../redux/slices/cartSlice";
 import { clearCurrentOrder } from "../../redux/slices/ordersSlice";
 import { checkPaymentStatus } from "../../api/payments";
-import { CheckCircle, Loader } from "lucide-react";
+import { CheckCircle, Loader, XCircle } from "lucide-react";
 import toast from "react-hot-toast";
 
 const PaymentSuccess = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const [searchParams] = useSearchParams();
-  const [isVerifying, setIsVerifying] = useState(true);
-  const [isPaid, setIsPaid] = useState(false);
+  const [paymentStatus, setPaymentStatus] = useState("verifying"); // 'verifying', 'success', 'error'
+  const timerRef = useRef(null);
 
   useEffect(() => {
+    const orderId = searchParams.get("orderId");
+
     const verifyPayment = async () => {
+      if (!orderId) {
+        console.error("No order ID in URL");
+        setPaymentStatus("error");
+        return;
+      }
+
       try {
-        const orderId = searchParams.get("orderId");
+        console.log(`🔍 Verifying payment for order: ${orderId}`);
+        const response = await checkPaymentStatus(orderId);
+        const { status: orderStatus } = response.data.data;
 
-        if (orderId) {
-          console.log(`🔍 Verifying payment for order: ${orderId}`);
-          const response = await checkPaymentStatus(orderId);
-          console.log("✅ Payment status response:", response.data);
+        console.log("📊 Payment status:", orderStatus);
 
-          if (response.data.data.status === "paid") {
-            setIsPaid(true);
-            toast.success("Payment confirmed!");
-          } else {
-            // ✅ Poll again after 5 seconds if not paid yet
-            setTimeout(async () => {
-              try {
-                const retryResponse = await checkPaymentStatus(orderId);
-                if (retryResponse.data.data.status === "paid") {
-                  setIsPaid(true);
-                  toast.success("Payment confirmed!");
-                } else {
-                  setIsPaid(true); // Assume success
-                }
-              } catch (e) {
-                setIsPaid(true); // Assume success
-              }
-            }, 5000);
-          }
+        if (orderStatus === "paid") {
+          console.log("✅ Payment confirmed!");
+          setPaymentStatus("success");
+          dispatch(clearCartThunk());
+          dispatch(clearCurrentOrder());
+          toast.success("Payment confirmed!");
+        } else if (orderStatus === "processing") {
+          console.log("⏳ Payment processing...");
+          // Poll for status update every 5 seconds
+          timerRef.current = setTimeout(verifyPayment, 5000);
         } else {
-          setIsPaid(true);
+          console.log("⚠️ Payment status:", orderStatus);
+          setPaymentStatus("error");
         }
       } catch (error) {
         console.error("❌ Payment verification error:", error);
-        setIsPaid(true);
-      } finally {
-        setIsVerifying(false);
+        setPaymentStatus("error");
       }
     };
 
     verifyPayment();
-    dispatch(clearCartThunk());
-    dispatch(clearCurrentOrder());
+
+    // Cleanup timer on unmount
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
   }, [dispatch, searchParams]);
 
-  if (isVerifying) {
+  if (paymentStatus === "verifying") {
     return (
       <div className="min-h-[60vh] flex flex-col items-center justify-center bg-[#F7F3EA]">
         <Loader
@@ -84,23 +84,29 @@ const PaymentSuccess = () => {
       `}</style>
 
       <div className="text-center max-w-md bg-white p-10 border border-[#E6DFD1]">
-        <CheckCircle
-          className="w-20 h-20 text-[#1F3D33] mx-auto mb-6"
-          strokeWidth={1.5}
-        />
+        {paymentStatus === "success" ? (
+          <CheckCircle
+            className="w-20 h-20 text-[#1F3D33] mx-auto mb-6"
+            strokeWidth={1.5}
+          />
+        ) : (
+          <XCircle
+            className="w-20 h-20 text-red-600 mx-auto mb-6"
+            strokeWidth={1.5}
+          />
+        )}
+
         <h1 className="font-display text-3xl text-[#14120F] mb-4">
-          {isPaid ? "Payment Successful!" : "Order Placed!"}
+          {paymentStatus === "success"
+            ? "Payment Successful!"
+            : "Payment Issue"}
         </h1>
-        <p className="text-[#5C5348] mb-2">
-          Thank you for your order!
-          {isPaid
-            ? " Your payment has been confirmed."
-            : " We are processing your payment."}
+        <p className="text-[#5C5348] mb-8">
+          {paymentStatus === "success"
+            ? "Thank you for your order! Your payment has been confirmed."
+            : "There was an issue confirming your payment. Please check your orders page or contact support."}
         </p>
-        <p className="text-[#8C7B6B] text-sm mb-8">
-          You will receive an email confirmation shortly with your order
-          details.
-        </p>
+
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <button
             onClick={() => navigate("/orders")}

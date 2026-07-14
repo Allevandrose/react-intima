@@ -2,14 +2,17 @@
  * CheckoutPage — luxury boutique redesign
  */
 import React, { useState, useEffect } from "react";
-import { useDispatch, useSelector } from "react-redux";
+import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
+import axios from "axios";
 import {
-  createOrderThunk,
-  initiatePaymentThunk,
-  clearCurrentOrder,
-} from "../../redux/slices/ordersSlice";
-import { Shield, Truck, CreditCard, ArrowLeft, Loader } from "lucide-react";
+  Shield,
+  Truck,
+  CreditCard,
+  ArrowLeft,
+  Loader,
+  AlertCircle,
+} from "lucide-react";
 import toast from "react-hot-toast";
 
 // ✅ Import selectors from cartSlice
@@ -20,8 +23,9 @@ import {
   selectTotal,
 } from "../../redux/slices/cartSlice";
 
+const API_BASE_URL = "https://adult-novelty.onrender.com/api";
+
 const CheckoutPage = () => {
-  const dispatch = useDispatch();
   const navigate = useNavigate();
 
   // ✅ Use selectors to get cart data
@@ -31,9 +35,11 @@ const CheckoutPage = () => {
   const total = useSelector(selectTotal) || 0;
 
   const { isAuthenticated, user } = useSelector((state) => state.auth);
-  const { loading, paymentUrl, currentOrder } = useSelector(
-    (state) => state.orders,
-  );
+
+  // ✅ Local state management
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [checkoutError, setCheckoutError] = useState(null);
+  const [checkoutStep, setCheckoutStep] = useState("idle"); // idle | creating | paying | redirecting
 
   const [formData, setFormData] = useState({
     street: "",
@@ -62,18 +68,6 @@ const CheckoutPage = () => {
     }
   }, [isAuthenticated, items.length, navigate, user]);
 
-  useEffect(() => {
-    if (paymentUrl) {
-      window.location.href = paymentUrl;
-    }
-  }, [paymentUrl]);
-
-  useEffect(() => {
-    if (currentOrder && !loading && !paymentUrl) {
-      dispatch(initiatePaymentThunk(currentOrder._id));
-    }
-  }, [currentOrder, loading, paymentUrl, dispatch]);
-
   const formatCurrency = (amount) => {
     if (!amount || isNaN(amount) || amount === 0) {
       return "Ksh 0";
@@ -91,6 +85,10 @@ const CheckoutPage = () => {
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: "" }));
     }
+    // Clear checkout error when user makes changes
+    if (checkoutError) {
+      setCheckoutError(null);
+    }
   };
 
   const validate = () => {
@@ -105,9 +103,13 @@ const CheckoutPage = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  // ✅ Fully implemented submission logic with variant handling and debug logging
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  // ✅ Direct axios checkout flow — no Redux thunks
+  const handleCheckout = async () => {
+    // Prevent multiple submissions
+    if (isProcessing) return;
+
+    // Clear previous errors
+    setCheckoutError(null);
 
     if (!validate()) {
       toast.error("Please fill in all required fields");
@@ -120,7 +122,7 @@ const CheckoutPage = () => {
       return;
     }
 
-    // ✅ Filter valid items
+    // Filter valid items
     const validItems = items.filter((item) => item.productId);
     if (validItems.length === 0) {
       toast.error("No valid items in cart");
@@ -128,19 +130,17 @@ const CheckoutPage = () => {
       return;
     }
 
-    // ✅ Build order data with precise conditional variant handling
+    // Build order data
     const orderData = {
       items: validItems.map((item) => {
         const hasVariant =
           item.selectedVariant?.size || item.selectedVariant?.color;
 
-        // Base structure mapping
         const itemData = {
           productId: item.productId,
           quantity: item.quantity,
         };
 
-        // Only explicitly construct and attach selectedVariant if properties exist
         if (hasVariant) {
           itemData.selectedVariant = {
             size: item.selectedVariant.size || "",
@@ -161,23 +161,106 @@ const CheckoutPage = () => {
       notes: formData.notes,
     };
 
-    // ✅ DEBUG: Trace payload values
-    console.log("🛒 Context Cart Items:", items);
-    console.log("📤 Sending order data:", JSON.stringify(orderData, null, 2));
+    console.log("🛒 Processing checkout...");
+    console.log("📦 Creating order with data:", orderData);
 
-    const result = await dispatch(createOrderThunk(orderData));
+    setIsProcessing(true);
 
-    // ✅ DEBUG: Log response metadata
-    console.log("📨 Order action result:", result);
+    try {
+      // ─── Step 1: Create Order ───
+      setCheckoutStep("creating");
 
-    if (result.error) {
-      toast.error(result.error.message || "Failed to create order");
-    } else {
-      toast.success("Order created! Redirecting to payment...");
+      const orderResponse = await axios.post(
+        `${API_BASE_URL}/orders`,
+        orderData,
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+            "Content-Type": "application/json",
+          },
+        },
+      );
+
+      console.log("✅ Order created:", orderResponse.data);
+
+      if (!orderResponse.data.success) {
+        throw new Error(orderResponse.data.message || "Failed to create order");
+      }
+
+      const order = orderResponse.data.data;
+      toast.success("Order created successfully!");
+
+      // ─── Step 2: Initiate Payment ───
+      setCheckoutStep("paying");
+      console.log("💳 Initiating payment for order:", order._id);
+
+      const paymentResponse = await axios.post(
+        `${API_BASE_URL}/payments/initiate`,
+        { orderId: order._id },
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+            "Content-Type": "application/json",
+          },
+        },
+      );
+
+      console.log("💳 Payment response:", paymentResponse.data);
+
+      if (!paymentResponse.data.success) {
+        throw new Error(
+          paymentResponse.data.message || "Failed to initiate payment",
+        );
+      }
+
+      const paymentData = paymentResponse.data.data;
+
+      // ─── Step 3: Redirect to Payment ───
+      if (paymentData.paymentUrl) {
+        setCheckoutStep("redirecting");
+        console.log("🔗 Redirecting to payment URL:", paymentData.paymentUrl);
+
+        // Small delay to show redirecting state
+        setTimeout(() => {
+          window.location.href = paymentData.paymentUrl;
+        }, 500);
+      } else {
+        throw new Error("No payment URL received");
+      }
+    } catch (error) {
+      console.error("❌ Checkout error:", error);
+
+      const errorMessage =
+        error.response?.data?.message ||
+        error.message ||
+        "Checkout failed. Please try again.";
+
+      setCheckoutError(errorMessage);
+      toast.error(errorMessage);
+
+      // Reset step on error
+      setCheckoutStep("idle");
+    } finally {
+      setIsProcessing(false);
     }
   };
 
-  if (loading || paymentUrl) {
+  // ✅ Step labels for loading state
+  const getStepLabel = () => {
+    switch (checkoutStep) {
+      case "creating":
+        return "Creating your order...";
+      case "paying":
+        return "Setting up payment...";
+      case "redirecting":
+        return "Redirecting to payment...";
+      default:
+        return "Processing your order...";
+    }
+  };
+
+  // ✅ Full-screen loading state
+  if (isProcessing && checkoutStep !== "idle") {
     return (
       <div className="min-h-screen bg-[#F7F3EA] font-['Work_Sans']">
         <style>{`
@@ -190,10 +273,10 @@ const CheckoutPage = () => {
             strokeWidth={1.5}
           />
           <h2 className="font-display text-2xl text-[#14120F] mb-2">
-            Processing your order...
+            {getStepLabel()}
           </h2>
           <p className="text-[#8C7B6B] text-sm tracking-wide">
-            Please wait while we redirect you to payment
+            Please wait, do not close this page
           </p>
         </div>
       </div>
@@ -232,7 +315,13 @@ const CheckoutPage = () => {
                 Shipping Information
               </h2>
 
-              <form onSubmit={handleSubmit} className="space-y-5">
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleCheckout();
+                }}
+                className="space-y-5"
+              >
                 <div>
                   <label className="block text-[11px] uppercase tracking-[0.15em] text-[#8C7B6B] mb-2">
                     Street Address <span className="text-[#8C4B3A]">*</span>
@@ -242,9 +331,10 @@ const CheckoutPage = () => {
                     name="street"
                     value={formData.street}
                     onChange={handleChange}
+                    disabled={isProcessing}
                     className={`lux-input w-full px-4 py-3 bg-white border text-sm text-[#14120F] placeholder-[#B7AC98] transition-colors ${
                       errors.street ? "border-[#8C4B3A]" : "border-[#D8CFBC]"
-                    }`}
+                    } ${isProcessing ? "opacity-50 cursor-not-allowed" : ""}`}
                     placeholder="Enter your street address"
                   />
                   {errors.street && (
@@ -264,9 +354,10 @@ const CheckoutPage = () => {
                       name="city"
                       value={formData.city}
                       onChange={handleChange}
+                      disabled={isProcessing}
                       className={`lux-input w-full px-4 py-3 bg-white border text-sm text-[#14120F] placeholder-[#B7AC98] transition-colors ${
                         errors.city ? "border-[#8C4B3A]" : "border-[#D8CFBC]"
-                      }`}
+                      } ${isProcessing ? "opacity-50 cursor-not-allowed" : ""}`}
                       placeholder="Enter your city"
                     />
                     {errors.city && (
@@ -284,9 +375,10 @@ const CheckoutPage = () => {
                       name="county"
                       value={formData.county}
                       onChange={handleChange}
+                      disabled={isProcessing}
                       className={`lux-select w-full px-4 py-3 bg-white border text-sm text-[#14120F] transition-colors ${
                         errors.county ? "border-[#8C4B3A]" : "border-[#D8CFBC]"
-                      }`}
+                      } ${isProcessing ? "opacity-50 cursor-not-allowed" : ""}`}
                     >
                       <option value="">Select County</option>
                       <option value="Nairobi">Nairobi</option>
@@ -316,9 +408,10 @@ const CheckoutPage = () => {
                       name="phone"
                       value={formData.phone}
                       onChange={handleChange}
+                      disabled={isProcessing}
                       className={`lux-input w-full px-4 py-3 bg-white border text-sm text-[#14120F] placeholder-[#B7AC98] transition-colors ${
                         errors.phone ? "border-[#8C4B3A]" : "border-[#D8CFBC]"
-                      }`}
+                      } ${isProcessing ? "opacity-50 cursor-not-allowed" : ""}`}
                       placeholder="0712345678"
                     />
                     {errors.phone && (
@@ -337,7 +430,10 @@ const CheckoutPage = () => {
                       name="postalCode"
                       value={formData.postalCode}
                       onChange={handleChange}
-                      className="lux-input w-full px-4 py-3 bg-white border border-[#D8CFBC] text-sm text-[#14120F] placeholder-[#B7AC98] transition-colors"
+                      disabled={isProcessing}
+                      className={`lux-input w-full px-4 py-3 bg-white border border-[#D8CFBC] text-sm text-[#14120F] placeholder-[#B7AC98] transition-colors ${
+                        isProcessing ? "opacity-50 cursor-not-allowed" : ""
+                      }`}
                       placeholder="00100"
                     />
                   </div>
@@ -351,8 +447,11 @@ const CheckoutPage = () => {
                     name="notes"
                     value={formData.notes}
                     onChange={handleChange}
+                    disabled={isProcessing}
                     rows="3"
-                    className="lux-textarea w-full px-4 py-3 bg-white border border-[#D8CFBC] text-sm text-[#14120F] placeholder-[#B7AC98] transition-colors"
+                    className={`lux-textarea w-full px-4 py-3 bg-white border border-[#D8CFBC] text-sm text-[#14120F] placeholder-[#B7AC98] transition-colors ${
+                      isProcessing ? "opacity-50 cursor-not-allowed" : ""
+                    }`}
                     placeholder="Any special instructions for delivery..."
                   />
                 </div>
@@ -432,12 +531,24 @@ const CheckoutPage = () => {
                 </div>
               </div>
 
+              {/* ✅ Error Display */}
+              {checkoutError && (
+                <div className="mt-5 p-3.5 bg-red-50 border border-red-200 flex items-start gap-3">
+                  <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
+                  <p className="text-xs text-red-600 leading-relaxed">
+                    {checkoutError}
+                  </p>
+                </div>
+              )}
+
+              {/* ✅ Updated Button */}
               <button
-                onClick={handleSubmit}
-                disabled={loading}
-                className="w-full mt-7 bg-[#14120F] text-[#F7F3EA] py-3.5 text-xs uppercase tracking-[0.2em] hover:bg-[#1F3D33] transition-colors duration-300 flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                onClick={handleCheckout}
+                type="button"
+                disabled={isProcessing}
+                className="w-full mt-5 bg-[#14120F] text-[#F7F3EA] py-3.5 text-xs uppercase tracking-[0.2em] hover:bg-[#1F3D33] transition-colors duration-300 flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-[#14120F]"
               >
-                {loading ? (
+                {isProcessing ? (
                   <>
                     <Loader className="w-4 h-4 animate-spin" />
                     Processing...
