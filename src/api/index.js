@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const API_URL = import.meta.env.VITE_API_URL;
+const API_URL = import.meta.env.VITE_API_URL || "https://adult-novelty.onrender.com/api";
 const BASE_URL = import.meta.env.VITE_BASE_URL;
 
 // Create axios instance with timeout

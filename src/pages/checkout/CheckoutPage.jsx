@@ -2,9 +2,8 @@
  * CheckoutPage — luxury boutique redesign
  */
 import React, { useState, useEffect } from "react";
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
 import {
   Shield,
   Truck,
@@ -15,6 +14,11 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 
+// ✅ Import the configured api instance (NOT axios directly)
+import api from "../../api/index";
+import { createOrder } from "../../api/orders";
+import { initiatePayment } from "../../api/payments";
+
 // ✅ Import selectors from cartSlice
 import {
   selectCartItems,
@@ -23,10 +27,12 @@ import {
   selectTotal,
 } from "../../redux/slices/cartSlice";
 
-const API_BASE_URL = "https://adult-novelty.onrender.com/api";
+// ✅ Import clear cart action
+import { clearCart } from "../../redux/slices/cartSlice";
 
 const CheckoutPage = () => {
   const navigate = useNavigate();
+  const dispatch = useDispatch();
 
   // ✅ Use selectors to get cart data
   const items = useSelector(selectCartItems) || [];
@@ -85,7 +91,6 @@ const CheckoutPage = () => {
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: "" }));
     }
-    // Clear checkout error when user makes changes
     if (checkoutError) {
       setCheckoutError(null);
     }
@@ -103,12 +108,9 @@ const CheckoutPage = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  // ✅ Direct axios checkout flow — no Redux thunks
+  // ✅ Updated checkout flow using the configured api instance
   const handleCheckout = async () => {
-    // Prevent multiple submissions
     if (isProcessing) return;
-
-    // Clear previous errors
     setCheckoutError(null);
 
     if (!validate()) {
@@ -122,11 +124,9 @@ const CheckoutPage = () => {
       return;
     }
 
-    // Filter valid items
     const validItems = items.filter((item) => item.productId);
     if (validItems.length === 0) {
       toast.error("No valid items in cart");
-      console.error("❌ Invalid items snapshot:", items);
       return;
     }
 
@@ -135,12 +135,10 @@ const CheckoutPage = () => {
       items: validItems.map((item) => {
         const hasVariant =
           item.selectedVariant?.size || item.selectedVariant?.color;
-
         const itemData = {
           productId: item.productId,
           quantity: item.quantity,
         };
-
         if (hasVariant) {
           itemData.selectedVariant = {
             size: item.selectedVariant.size || "",
@@ -148,7 +146,6 @@ const CheckoutPage = () => {
             priceAdjustment: item.selectedVariant.priceAdjustment || 0,
           };
         }
-
         return itemData;
       }),
       shippingAddress: {
@@ -163,6 +160,7 @@ const CheckoutPage = () => {
 
     console.log("🛒 Processing checkout...");
     console.log("📦 Creating order with data:", orderData);
+    console.log("🔑 Token present:", !!localStorage.getItem("token"));
 
     setIsProcessing(true);
 
@@ -170,16 +168,8 @@ const CheckoutPage = () => {
       // ─── Step 1: Create Order ───
       setCheckoutStep("creating");
 
-      const orderResponse = await axios.post(
-        `${API_BASE_URL}/orders`,
-        orderData,
-        {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
-            "Content-Type": "application/json",
-          },
-        },
-      );
+      // ✅ Use the configured api instance instead of axios directly
+      const orderResponse = await createOrder(orderData);
 
       console.log("✅ Order created:", orderResponse.data);
 
@@ -194,16 +184,8 @@ const CheckoutPage = () => {
       setCheckoutStep("paying");
       console.log("💳 Initiating payment for order:", order._id);
 
-      const paymentResponse = await axios.post(
-        `${API_BASE_URL}/payments/initiate`,
-        { orderId: order._id },
-        {
-          headers: {
-            Authorization: `Bearer ${localStorage.getItem("token")}`,
-            "Content-Type": "application/json",
-          },
-        },
-      );
+      // ✅ Use the configured api instance
+      const paymentResponse = await initiatePayment(order._id);
 
       console.log("💳 Payment response:", paymentResponse.data);
 
@@ -220,7 +202,9 @@ const CheckoutPage = () => {
         setCheckoutStep("redirecting");
         console.log("🔗 Redirecting to payment URL:", paymentData.paymentUrl);
 
-        // Small delay to show redirecting state
+        // Clear cart after successful order
+        dispatch(clearCart());
+
         setTimeout(() => {
           window.location.href = paymentData.paymentUrl;
         }, 500);
@@ -230,22 +214,30 @@ const CheckoutPage = () => {
     } catch (error) {
       console.error("❌ Checkout error:", error);
 
-      const errorMessage =
-        error.response?.data?.message ||
-        error.message ||
-        "Checkout failed. Please try again.";
+      // ✅ Better error handling
+      let errorMessage = "Checkout failed. Please try again.";
+      if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+
+      // Check if it's an authentication error
+      if (error.response?.status === 401 || error.response?.status === 403) {
+        errorMessage = "Your session has expired. Please login again.";
+        setTimeout(() => {
+          navigate("/login");
+        }, 2000);
+      }
 
       setCheckoutError(errorMessage);
       toast.error(errorMessage);
-
-      // Reset step on error
       setCheckoutStep("idle");
     } finally {
       setIsProcessing(false);
     }
   };
 
-  // ✅ Step labels for loading state
   const getStepLabel = () => {
     switch (checkoutStep) {
       case "creating":
@@ -259,7 +251,6 @@ const CheckoutPage = () => {
     }
   };
 
-  // ✅ Full-screen loading state
   if (isProcessing && checkoutStep !== "idle") {
     return (
       <div className="min-h-screen bg-[#F7F3EA] font-['Work_Sans']">
@@ -531,7 +522,6 @@ const CheckoutPage = () => {
                 </div>
               </div>
 
-              {/* ✅ Error Display */}
               {checkoutError && (
                 <div className="mt-5 p-3.5 bg-red-50 border border-red-200 flex items-start gap-3">
                   <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
@@ -541,12 +531,11 @@ const CheckoutPage = () => {
                 </div>
               )}
 
-              {/* ✅ Updated Button */}
               <button
                 onClick={handleCheckout}
                 type="button"
                 disabled={isProcessing}
-                className="w-full mt-5 bg-[#14120F] text-[#F7F3EA] py-3.5 text-xs uppercase tracking-[0.2em] hover:bg-[#1F3D33] transition-colors duration-300 flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-[#14120F]"
+                className="w-full mt-5 bg-[#14120F] text-[#F7F3EA] py-3.5 text-xs uppercase tracking-[0.2em] hover:bg-[#1F3D33] transition-colors duration-300 flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {isProcessing ? (
                   <>
