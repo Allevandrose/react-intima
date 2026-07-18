@@ -1,7 +1,7 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
-import { registerUser } from "../../redux/slices/authSlice";
+import { registerUser, clearError } from "../../redux/slices/authSlice";
 import toast from "react-hot-toast";
 import Swal from "sweetalert2";
 
@@ -17,11 +17,26 @@ const Register = () => {
   const [passwordStrength, setPasswordStrength] = useState(0);
   const dispatch = useDispatch();
   const navigate = useNavigate();
-  const { isLoading } = useSelector((state) => state.auth);
+  const { isLoading, isAuthenticated, user, error } = useSelector(
+    (state) => state.auth,
+  );
+
+  // ✅ FIX: Redirect if already logged in
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      navigate("/", { replace: true });
+    }
+  }, [isAuthenticated, user, navigate]);
+
+  // ✅ Clear errors when component mounts
+  useEffect(() => {
+    dispatch(clearError());
+  }, [dispatch]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData({ ...formData, [name]: value });
+    if (error) dispatch(clearError());
 
     if (name === "password") {
       calculatePasswordStrength(value);
@@ -53,11 +68,7 @@ const Register = () => {
   };
 
   const validateKenyanPhone = (phone) => {
-    // Remove all non-digits
     const cleaned = phone.replace(/\D/g, "");
-
-    // Check if it's a valid Kenyan phone number
-    // Matches: 07XX XXX XXX or 2547XX XXX XXX or 2541XX XXX XXX
     const kenyanRegex = /^(?:254|0)?([17]\d{8})$/;
     return kenyanRegex.test(cleaned);
   };
@@ -108,13 +119,12 @@ const Register = () => {
     }
 
     try {
-      // ✅ FIX: Send confirmPassword to backend for validation
       const result = await dispatch(
         registerUser({
           email: formData.email.trim().toLowerCase(),
           phone: phone,
           password: formData.password,
-          confirmPassword: formData.confirmPassword, // This was missing!
+          confirmPassword: formData.confirmPassword,
         }),
       );
 
@@ -122,10 +132,8 @@ const Register = () => {
         await Swal.fire({
           icon: "success",
           title: "Account Created!",
-          text:
-            result.message ||
-            "Welcome to IntimaCare. Your account has been created successfully.",
-          timer: 2500,
+          text: "Welcome to IntimaCare. Your account has been created successfully.",
+          timer: 2000,
           showConfirmButton: false,
           background: "#F7F3EA",
           iconColor: "#B08D4F",
@@ -152,6 +160,11 @@ const Register = () => {
       toast.error("An unexpected error occurred. Please try again.");
     }
   };
+
+  // If already authenticated, don't render registration form
+  if (isAuthenticated && user) {
+    return null; // Will redirect via useEffect
+  }
 
   return (
     <div className="min-h-[80vh] flex items-center justify-center bg-[#F7F3EA] py-12 px-4 sm:px-6 lg:px-8 font-['Work_Sans']">
@@ -203,10 +216,13 @@ const Register = () => {
                 required
                 value={formData.email}
                 onChange={handleChange}
-                className="lux-input block w-full px-4 py-3 bg-white border border-[#D8CFBC] text-sm text-[#14120F] placeholder-[#B7AC98] transition-colors"
+                className={`lux-input block w-full px-4 py-3 bg-white border ${
+                  error ? "border-red-500" : "border-[#D8CFBC]"
+                } text-sm text-[#14120F] placeholder-[#B7AC98] transition-colors`}
                 placeholder="you@example.com"
                 disabled={isLoading}
               />
+              {error && <p className="mt-1.5 text-xs text-red-500">{error}</p>}
             </div>
 
             <div>

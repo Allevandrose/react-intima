@@ -1,7 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
-import { loginUser } from "../../redux/slices/authSlice";
+import { loginUser, clearError } from "../../redux/slices/authSlice";
+import { fetchCart } from "../../redux/slices/cartSlice";
 import toast from "react-hot-toast";
 import Swal from "sweetalert2";
 
@@ -15,13 +16,30 @@ const Login = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const location = useLocation();
-  const { isLoading } = useSelector((state) => state.auth);
+  const { isLoading, isAuthenticated, user, error } = useSelector(
+    (state) => state.auth,
+  );
 
   // Get intended redirect path
   const from = location.state?.from?.pathname || "/";
 
+  // ✅ FIX: Redirect if already logged in
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      const redirectPath = user.role === "admin" ? "/admin" : "/";
+      navigate(redirectPath, { replace: true });
+    }
+  }, [isAuthenticated, user, navigate]);
+
+  // ✅ Clear errors when component mounts
+  useEffect(() => {
+    dispatch(clearError());
+  }, [dispatch]);
+
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
+    // Clear error when user types
+    if (error) dispatch(clearError());
   };
 
   const handleSubmit = async (e) => {
@@ -35,12 +53,19 @@ const Login = () => {
     const result = await dispatch(loginUser(formData, rememberMe));
 
     if (result.success) {
-      // ✅ SweetAlert success
+      // ✅ Fetch cart after successful login (but don't block UI)
+      if (result.role !== "admin") {
+        dispatch(fetchCart()).catch(() => {
+          // Silent fail - cart will be restored from localStorage
+        });
+      }
+
+      // Show success message
       await Swal.fire({
         icon: "success",
         title: "Welcome Back!",
         text: `Hello ${result.user?.email || "User"}`,
-        timer: 2000,
+        timer: 1500,
         showConfirmButton: false,
         background: "#F7F3EA",
         iconColor: "#B08D4F",
@@ -51,14 +76,19 @@ const Login = () => {
 
       // Redirect based on role
       if (result.role === "admin") {
-        navigate("/admin");
+        navigate("/admin", { replace: true });
       } else {
-        navigate(from);
+        navigate(from, { replace: true });
       }
     } else {
       toast.error(result.error || "Login failed");
     }
   };
+
+  // If already authenticated, don't render login form
+  if (isAuthenticated && user) {
+    return null; // Will redirect via useEffect
+  }
 
   return (
     <div className="min-h-[80vh] flex items-center justify-center bg-[#F7F3EA] py-12 px-4 sm:px-6 lg:px-8 font-['Work_Sans']">
@@ -113,10 +143,13 @@ const Login = () => {
                 required
                 value={formData.email}
                 onChange={handleChange}
-                className="lux-input block w-full px-4 py-3 bg-white border border-[#D8CFBC] text-sm text-[#14120F] placeholder-[#B7AC98] transition-colors"
+                className={`lux-input block w-full px-4 py-3 bg-white border ${
+                  error ? "border-red-500" : "border-[#D8CFBC]"
+                } text-sm text-[#14120F] placeholder-[#B7AC98] transition-colors`}
                 placeholder="you@example.com"
                 disabled={isLoading}
               />
+              {error && <p className="mt-1.5 text-xs text-red-500">{error}</p>}
             </div>
 
             <div>

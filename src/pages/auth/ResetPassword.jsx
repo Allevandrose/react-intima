@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
+import { useSelector } from "react-redux";
 import { resetPassword } from "../../api/auth";
 import toast from "react-hot-toast";
 import Swal from "sweetalert2";
@@ -14,6 +15,14 @@ const ResetPassword = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [passwordStrength, setPasswordStrength] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
+  const { isAuthenticated, user } = useSelector((state) => state.auth);
+
+  // ✅ FIX: Redirect if already logged in
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      navigate("/", { replace: true });
+    }
+  }, [isAuthenticated, user, navigate]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -68,7 +77,6 @@ const ResetPassword = () => {
     try {
       await resetPassword(token, formData.password);
 
-      // ✅ SweetAlert success
       await Swal.fire({
         icon: "success",
         title: "Password Reset Successful!",
@@ -88,6 +96,11 @@ const ResetPassword = () => {
       setIsLoading(false);
     }
   };
+
+  // If already authenticated, don't render
+  if (isAuthenticated && user) {
+    return null;
+  }
 
   return (
     <div className="min-h-[80vh] flex items-center justify-center bg-[#F7F3EA] py-12 px-4 sm:px-6 lg:px-8 font-['Work_Sans']">

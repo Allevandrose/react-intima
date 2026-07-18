@@ -6,7 +6,7 @@ import {
   logout as apiLogout,
 } from "../../api/auth";
 import { setAuthToken, getAuthToken } from "../../api/index";
-import { fetchCart, clearCartState } from "./cartSlice";
+import { clearCartState } from "./cartSlice";
 
 // Check both localStorage and sessionStorage for token
 const getStoredToken = () => {
@@ -43,7 +43,15 @@ const authSlice = createSlice({
     },
     setToken: (state, action) => {
       state.token = action.payload;
-      setAuthToken(action.payload, state.rememberMe);
+      // Store token based on rememberMe preference
+      if (state.rememberMe) {
+        localStorage.setItem("token", action.payload);
+        sessionStorage.removeItem("token");
+      } else {
+        sessionStorage.setItem("token", action.payload);
+        localStorage.removeItem("token");
+      }
+      setAuthToken(action.payload);
     },
     setRememberMe: (state, action) => {
       state.rememberMe = action.payload;
@@ -51,7 +59,6 @@ const authSlice = createSlice({
     setError: (state, action) => {
       state.error = action.payload;
     },
-    // ✅ Fixed: Rename the logout reducer to clearAuth to avoid conflict
     clearAuth: (state) => {
       state.user = null;
       state.token = null;
@@ -69,7 +76,6 @@ const authSlice = createSlice({
   },
 });
 
-// ✅ Fixed: Export actions with clearAuth instead of logout
 export const {
   setLoading,
   setUser,
@@ -80,7 +86,6 @@ export const {
   setRememberMe,
 } = authSlice.actions;
 
-// ✅ Fixed: Rename logoutUser thunk to use clearAuth
 export const logoutUser = () => async (dispatch) => {
   try {
     await apiLogout();
@@ -96,12 +101,15 @@ export const loginUser =
   async (dispatch) => {
     try {
       dispatch(setLoading(true));
+      dispatch(setError(null));
       dispatch(setRememberMe(rememberMe));
 
       const response = await login(credentials);
       const { token, refreshToken, ...user } = response.data.data;
 
+      // Set token first
       dispatch(setToken(token));
+      // Set user data
       dispatch(setUser(user));
 
       // Store refresh token
@@ -109,14 +117,9 @@ export const loginUser =
         localStorage.setItem("refreshToken", refreshToken);
       }
 
-      // Fetch cart only if not admin
-      if (user.role !== "admin") {
-        await dispatch(fetchCart());
-      } else {
-        dispatch(clearCartState());
-      }
-
       dispatch(setLoading(false));
+
+      // Return success immediately - cart will be fetched separately
       return { success: true, role: user.role, user };
     } catch (error) {
       dispatch(setError(error.response?.data?.message || "Login failed"));
@@ -128,9 +131,13 @@ export const loginUser =
 export const registerUser = (userData) => async (dispatch) => {
   try {
     dispatch(setLoading(true));
+    dispatch(setError(null));
+
     const response = await register(userData);
     const { token, refreshToken, ...user } = response.data.data;
 
+    // Set token based on rememberMe (default to true for registration)
+    dispatch(setRememberMe(true));
     dispatch(setToken(token));
     dispatch(setUser(user));
 
@@ -143,7 +150,12 @@ export const registerUser = (userData) => async (dispatch) => {
   } catch (error) {
     dispatch(setError(error.response?.data?.message || "Registration failed"));
     dispatch(setLoading(false));
-    return { success: false, error: error.response?.data?.message };
+    return {
+      success: false,
+      error: error.response?.data?.message,
+      field: error.response?.data?.field,
+      errors: error.response?.data?.errors,
+    };
   }
 };
 
@@ -153,20 +165,23 @@ export const loadUser = () => async (dispatch) => {
     if (!token) {
       // Check session storage
       const sessionToken = sessionStorage.getItem("token");
-      if (!sessionToken) return;
+      if (!sessionToken) {
+        // No token, clear auth state
+        dispatch(clearAuth());
+        return;
+      }
     }
 
     const response = await getProfile();
     const user = response.data.data;
     dispatch(setUser(user));
-
-    if (user.role !== "admin") {
-      dispatch(fetchCart());
-    } else {
-      dispatch(clearCartState());
-    }
   } catch (error) {
-    dispatch(logoutUser());
+    // If token is invalid, clear auth state
+    dispatch(clearAuth());
+    // Clear any invalid tokens
+    localStorage.removeItem("token");
+    sessionStorage.removeItem("token");
+    localStorage.removeItem("user");
   }
 };
 

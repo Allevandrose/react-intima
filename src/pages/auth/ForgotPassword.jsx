@@ -1,5 +1,6 @@
-import React, { useState } from "react";
-import { Link } from "react-router-dom";
+import React, { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { useSelector } from "react-redux";
 import { forgotPassword } from "../../api/auth";
 import toast from "react-hot-toast";
 import Swal from "sweetalert2";
@@ -8,6 +9,15 @@ const ForgotPassword = () => {
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isSent, setIsSent] = useState(false);
+  const navigate = useNavigate();
+  const { isAuthenticated, user } = useSelector((state) => state.auth);
+
+  // ✅ FIX: Redirect if already logged in
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      navigate("/", { replace: true });
+    }
+  }, [isAuthenticated, user, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -22,7 +32,6 @@ const ForgotPassword = () => {
       await forgotPassword(email);
       setIsSent(true);
 
-      // ✅ SweetAlert success
       await Swal.fire({
         icon: "success",
         title: "Reset Link Sent!",
@@ -41,6 +50,11 @@ const ForgotPassword = () => {
       setIsLoading(false);
     }
   };
+
+  // If already authenticated, don't render
+  if (isAuthenticated && user) {
+    return null;
+  }
 
   return (
     <div className="min-h-[80vh] flex items-center justify-center bg-[#F7F3EA] py-12 px-4 sm:px-6 lg:px-8 font-['Work_Sans']">

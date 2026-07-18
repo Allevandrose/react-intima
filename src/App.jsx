@@ -1,5 +1,10 @@
 import React, { useEffect, Suspense, lazy } from "react";
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+} from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 import { Provider, useDispatch, useSelector } from "react-redux";
 import { store } from "./redux/store";
@@ -42,50 +47,7 @@ const PageLoader = () => (
   </div>
 );
 
-// ✅ Optimized Cart Initializer with debounce
-const CartInitializer = ({ children }) => {
-  const dispatch = useDispatch();
-  const { isAuthenticated } = useSelector((state) => state.auth);
-  const token = getAuthToken();
-
-  useEffect(() => {
-    let mounted = true;
-    let timeoutId = null;
-
-    const initializeCart = async () => {
-      // Small delay to prevent race conditions
-      timeoutId = setTimeout(async () => {
-        if (!mounted) return;
-
-        if (token && isAuthenticated) {
-          try {
-            await dispatch(fetchCart()).unwrap();
-          } catch (error) {
-            console.error("Failed to fetch cart:", error);
-            if (mounted) {
-              dispatch(restoreCartFromLocal());
-            }
-          }
-        } else if (!isAuthenticated) {
-          if (mounted) {
-            dispatch(restoreCartFromLocal());
-          }
-        }
-      }, 100);
-    };
-
-    initializeCart();
-
-    return () => {
-      mounted = false;
-      if (timeoutId) clearTimeout(timeoutId);
-    };
-  }, [dispatch, token, isAuthenticated]);
-
-  return children;
-};
-
-// ✅ App Initializer - loads user on mount
+// ✅ Optimized App Initializer - loads user on mount
 const AppInitializer = ({ children }) => {
   const dispatch = useDispatch();
   const token = getAuthToken();
@@ -95,6 +57,45 @@ const AppInitializer = ({ children }) => {
       dispatch(loadUser());
     }
   }, [dispatch, token]);
+
+  return children;
+};
+
+// ✅ Cart Initializer - loads cart after auth
+const CartInitializer = ({ children }) => {
+  const dispatch = useDispatch();
+  const { isAuthenticated, isLoading } = useSelector((state) => state.auth);
+  const token = getAuthToken();
+
+  useEffect(() => {
+    let mounted = true;
+
+    const initializeCart = async () => {
+      // Wait for auth to load before fetching cart
+      if (isLoading) return;
+
+      if (token && isAuthenticated) {
+        try {
+          await dispatch(fetchCart()).unwrap();
+        } catch (error) {
+          console.error("Failed to fetch cart:", error);
+          if (mounted) {
+            dispatch(restoreCartFromLocal());
+          }
+        }
+      } else if (!isAuthenticated && !isLoading) {
+        if (mounted) {
+          dispatch(restoreCartFromLocal());
+        }
+      }
+    };
+
+    initializeCart();
+
+    return () => {
+      mounted = false;
+    };
+  }, [dispatch, token, isAuthenticated, isLoading]);
 
   return children;
 };
@@ -110,7 +111,7 @@ function App() {
               <main className="flex-grow">
                 <Suspense fallback={<PageLoader />}>
                   <Routes>
-                    {/* Public Routes */}
+                    {/* Public Routes - Auth pages will redirect if logged in */}
                     <Route path="/" element={<HomePage />} />
                     <Route path="/login" element={<Login />} />
                     <Route path="/register" element={<Register />} />
@@ -193,6 +194,9 @@ function App() {
                         </AdminRoute>
                       }
                     />
+
+                    {/* 404 Fallback */}
+                    <Route path="*" element={<Navigate to="/" replace />} />
                   </Routes>
                 </Suspense>
               </main>
