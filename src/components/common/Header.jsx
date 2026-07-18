@@ -7,30 +7,6 @@
  * <link rel="preconnect" href="https://fonts.googleapis.com">
  * <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
  * <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;0,9..144,600;1,9..144,400&family=Work+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
- *
- * All auth/cart logic (redux selectors, logout dispatch, navigation)
- * is untouched — only markup/classNames changed. The heart mark was
- * kept but recolored/restyled rather than removed, since it's your
- * existing brand mark — swap the icon out if you'd like something else.
- *
- * MOBILE MENU: previously the Shop / Orders / Dashboard links used
- * `hidden sm:inline`, so on small screens they simply vanished with
- * no way to reach them (that's why Dashboard wasn't visible for admins
- * on mobile). Added a hamburger button (visible only below `sm`) that
- * toggles a slide-down panel containing every nav link, built with
- * plain React state (useState) rather than Alpine.js — this is a React
- * app already, so a second reactivity framework would fight React for
- * control of the DOM instead of helping. This gives the same UX with
- * zero added dependencies.
- * ------------------------------------------------------------------
- *
- * PALETTE (applied throughout)
- *   Primary / Brand   — Deep Plum   #3B1E25
- *   Accent / CTA      — Warm Coral  #D97466
- *   Secondary Accent  — Soft Blush  #EAC7C7
- *   Background        — Off-White   #FAF8F6
- *   Surface / Cards   — Pure White  #FFFFFF
- *   Text (Body)       — Charcoal    #262626
  * ------------------------------------------------------------------
  */
 import React, { useState } from "react";
@@ -45,19 +21,33 @@ const Header = () => {
   const { totalItems } = useSelector((state) => state.cart);
   const dispatch = useDispatch();
   const navigate = useNavigate();
-
   const [menuOpen, setMenuOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    // Prevent multiple logout attempts
+    if (isLoggingOut) return;
+
+    setIsLoggingOut(true);
     setMenuOpen(false);
-    dispatch(logoutUser());
-    toast.success("Logged out successfully");
-    navigate("/");
+
+    try {
+      // ✅ FIX: Don't use .unwrap() - just await the dispatch
+      await dispatch(logoutUser());
+      toast.success("Logged out successfully");
+      navigate("/", { replace: true });
+    } catch (error) {
+      // Even if API fails, we should still clear local state
+      console.error("Logout error:", error);
+      toast.error("Logout failed, but you've been signed out locally");
+      navigate("/", { replace: true });
+    } finally {
+      setIsLoggingOut(false);
+    }
   };
 
   const closeMenu = () => setMenuOpen(false);
 
-  // 🆕 Check if user is admin
   const isAdmin = user?.role === "admin";
 
   return (
@@ -139,10 +129,15 @@ const Header = () => {
                 </span>
                 <button
                   onClick={handleLogout}
-                  className="flex items-center text-[#262626]/70 hover:text-[#3B1E25] transition-colors"
+                  disabled={isLoggingOut}
+                  className="flex items-center text-[#262626]/70 hover:text-[#3B1E25] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   aria-label="Log out"
                 >
-                  <LogOut className="w-4.5 h-4.5" strokeWidth={1.5} />
+                  {isLoggingOut ? (
+                    <div className="w-4.5 h-4.5 border-2 border-[#3B1E25] border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <LogOut className="w-4.5 h-4.5" strokeWidth={1.5} />
+                  )}
                 </button>
               </div>
             ) : (
@@ -240,10 +235,20 @@ const Header = () => {
               </span>
               <button
                 onClick={handleLogout}
-                className="flex items-center gap-2 py-3 text-xs uppercase tracking-[0.2em] text-[#262626]/70 hover:text-[#3B1E25] transition-colors"
+                disabled={isLoggingOut}
+                className="flex items-center gap-2 py-3 text-xs uppercase tracking-[0.2em] text-[#262626]/70 hover:text-[#3B1E25] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <LogOut className="w-4 h-4" strokeWidth={1.5} />
-                Log out
+                {isLoggingOut ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-[#3B1E25] border-t-transparent rounded-full animate-spin" />
+                    Logging out...
+                  </>
+                ) : (
+                  <>
+                    <LogOut className="w-4 h-4" strokeWidth={1.5} />
+                    Log out
+                  </>
+                )}
               </button>
             </>
           ) : (

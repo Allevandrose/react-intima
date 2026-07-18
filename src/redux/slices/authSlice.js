@@ -8,6 +8,9 @@ import {
 import { setAuthToken, getAuthToken } from "../../api/index";
 import { clearCartState } from "./cartSlice";
 
+// ✅ FIX: Import axios to remove auth header
+import axios from "axios";
+
 // Check both localStorage and sessionStorage for token
 const getStoredToken = () => {
   const token = localStorage.getItem("token");
@@ -43,7 +46,6 @@ const authSlice = createSlice({
     },
     setToken: (state, action) => {
       state.token = action.payload;
-      // Store token based on rememberMe preference
       if (state.rememberMe) {
         localStorage.setItem("token", action.payload);
         sessionStorage.removeItem("token");
@@ -59,16 +61,20 @@ const authSlice = createSlice({
     setError: (state, action) => {
       state.error = action.payload;
     },
+    // ✅ Immediate logout - clears state without waiting for API
     clearAuth: (state) => {
       state.user = null;
       state.token = null;
       state.isAuthenticated = false;
       state.rememberMe = false;
+      state.error = null;
       localStorage.removeItem("token");
       localStorage.removeItem("tokenExpiry");
       localStorage.removeItem("refreshToken");
       localStorage.removeItem("user");
       sessionStorage.removeItem("token");
+      // ✅ FIX: Remove auth header from axios
+      delete axios.defaults.headers.common["Authorization"];
     },
     clearError: (state) => {
       state.error = null;
@@ -86,14 +92,17 @@ export const {
   setRememberMe,
 } = authSlice.actions;
 
+// ✅ OPTIMIZED: Logout clears state immediately, API call is non-blocking
 export const logoutUser = () => async (dispatch) => {
-  try {
-    await apiLogout();
-  } catch (error) {
-    // Ignore errors on logout
-  }
+  // ✅ Clear auth state FIRST (instant)
   dispatch(clearAuth());
   dispatch(clearCartState());
+
+  // ✅ Then try to notify server (non-blocking) - don't await, let it run in background
+  apiLogout().catch((error) => {
+    // Ignore errors on logout - user is already logged out locally
+    console.debug("Logout API call failed, but user is logged out locally");
+  });
 };
 
 export const loginUser =
@@ -107,19 +116,14 @@ export const loginUser =
       const response = await login(credentials);
       const { token, refreshToken, ...user } = response.data.data;
 
-      // Set token first
       dispatch(setToken(token));
-      // Set user data
       dispatch(setUser(user));
 
-      // Store refresh token
       if (refreshToken) {
         localStorage.setItem("refreshToken", refreshToken);
       }
 
       dispatch(setLoading(false));
-
-      // Return success immediately - cart will be fetched separately
       return { success: true, role: user.role, user };
     } catch (error) {
       dispatch(setError(error.response?.data?.message || "Login failed"));
@@ -136,7 +140,6 @@ export const registerUser = (userData) => async (dispatch) => {
     const response = await register(userData);
     const { token, refreshToken, ...user } = response.data.data;
 
-    // Set token based on rememberMe (default to true for registration)
     dispatch(setRememberMe(true));
     dispatch(setToken(token));
     dispatch(setUser(user));
@@ -163,10 +166,8 @@ export const loadUser = () => async (dispatch) => {
   try {
     const token = getAuthToken();
     if (!token) {
-      // Check session storage
       const sessionToken = sessionStorage.getItem("token");
       if (!sessionToken) {
-        // No token, clear auth state
         dispatch(clearAuth());
         return;
       }
@@ -176,9 +177,7 @@ export const loadUser = () => async (dispatch) => {
     const user = response.data.data;
     dispatch(setUser(user));
   } catch (error) {
-    // If token is invalid, clear auth state
     dispatch(clearAuth());
-    // Clear any invalid tokens
     localStorage.removeItem("token");
     sessionStorage.removeItem("token");
     localStorage.removeItem("user");
