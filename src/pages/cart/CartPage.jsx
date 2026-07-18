@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { Link, useNavigate } from "react-router-dom";
 import {
@@ -34,6 +34,7 @@ const CartPage = () => {
   const shipping = useSelector(selectShipping) || 0;
   const total = useSelector(selectTotal) || 0;
   const { isAuthenticated } = useSelector((state) => state.auth);
+  const [isUpdating, setIsUpdating] = useState(false);
 
   const formatCurrency = (amount) => {
     if (!amount || isNaN(amount) || amount === 0) {
@@ -46,15 +47,12 @@ const CartPage = () => {
     }).format(amount);
   };
 
-  const handleUpdateQuantity = (item, newQuantity) => {
+  // ✅ FIXED: Use itemId instead of productId
+  const handleUpdateQuantity = async (item, newQuantity) => {
+    if (isUpdating) return;
+
     if (newQuantity < 1) {
-      dispatch(
-        removeFromCart({
-          productId: item.productId,
-          selectedVariant: item.selectedVariant || null,
-        }),
-      );
-      toast.success("Item removed from cart");
+      await handleRemoveItem(item);
       return;
     }
 
@@ -73,16 +71,23 @@ const CartPage = () => {
       return;
     }
 
-    dispatch(
-      updateCartItem({
-        productId: item.productId,
-        quantity: newQuantity,
-        selectedVariant: item.selectedVariant || null,
-      }),
-    );
+    setIsUpdating(true);
+    try {
+      // ✅ Use itemId from the cart item
+      await dispatch(
+        updateCartItem({
+          itemId: item.itemId || item._id,
+          quantity: newQuantity,
+        }),
+      ).unwrap();
+    } catch (error) {
+      console.error("Failed to update quantity:", error);
+    } finally {
+      setIsUpdating(false);
+    }
   };
 
-  // ✅ Updated with SweetAlert
+  // ✅ FIXED: Use itemId instead of productId
   const handleRemoveItem = async (item) => {
     const result = await Swal.fire({
       title: "Remove Item?",
@@ -97,25 +102,31 @@ const CartPage = () => {
     });
 
     if (result.isConfirmed) {
-      dispatch(
-        removeFromCart({
-          productId: item.productId,
-          selectedVariant: item.selectedVariant || null,
-        }),
-      );
-      await Swal.fire({
-        icon: "success",
-        title: "Removed!",
-        text: "Item has been removed from your bag.",
-        timer: 1500,
-        showConfirmButton: false,
-        background: "#F7F3EA",
-        iconColor: "#B08D4F",
-      });
+      setIsUpdating(true);
+      try {
+        // ✅ Use itemId from the cart item
+        await dispatch(
+          removeFromCart({
+            itemId: item.itemId || item._id,
+          }),
+        ).unwrap();
+        await Swal.fire({
+          icon: "success",
+          title: "Removed!",
+          text: "Item has been removed from your bag.",
+          timer: 1500,
+          showConfirmButton: false,
+          background: "#F7F3EA",
+          iconColor: "#B08D4F",
+        });
+      } catch (error) {
+        console.error("Failed to remove item:", error);
+      } finally {
+        setIsUpdating(false);
+      }
     }
   };
 
-  // ✅ Updated with SweetAlert
   const handleClearCart = async () => {
     const result = await Swal.fire({
       title: "Clear Bag?",
@@ -143,7 +154,6 @@ const CartPage = () => {
     }
   };
 
-  // ✅ Updated with SweetAlert
   const handleCheckout = async () => {
     if (!isAuthenticated) {
       await Swal.fire({
@@ -193,7 +203,7 @@ const CartPage = () => {
     );
   }
 
-  // Active Cart State - same as before
+  // Active Cart State
   return (
     <div className="min-h-screen bg-[#F7F3EA] font-['Work_Sans']">
       <style>{`
@@ -228,11 +238,11 @@ const CartPage = () => {
               <div className="divide-y divide-[#EFEAE0]">
                 {items.map((item, index) => (
                   <div
-                    key={`${item.productId}-${index}`}
+                    key={`${item.itemId || item.productId}-${index}`}
                     className="px-5 md:px-6 py-5"
                   >
                     <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
-                      {/* Product Image & Info Meta */}
+                      {/* Product Image & Info */}
                       <div className="md:col-span-6">
                         <div className="flex items-center gap-4">
                           <div className="w-16 h-20 bg-[#EFEAE0] flex items-center justify-center flex-shrink-0 overflow-hidden">
@@ -292,14 +302,16 @@ const CartPage = () => {
                         </span>
                       </div>
 
-                      {/* Quantity Controls */}
-                      <div className="md:col-span-2 flex items-center justify-start md:justify-center gap-3">
+                      {/* ✅ FIXED: Quantity Controls - matching ProductDetail style */}
+                      <div className="md:col-span-2 flex items-center justify-start md:justify-center">
                         <div className="flex items-center border border-[#D8CFBC]">
                           <button
                             onClick={() =>
                               handleUpdateQuantity(item, item.quantity - 1)
                             }
-                            className="w-8 h-8 flex items-center justify-center hover:bg-[#EFEAE0] transition-colors text-[#14120F]"
+                            disabled={isUpdating || item.quantity <= 1}
+                            className="w-8 h-8 flex items-center justify-center hover:bg-[#EFEAE0] transition-colors text-[#14120F] disabled:opacity-40 disabled:cursor-not-allowed"
+                            aria-label="Decrease quantity"
                           >
                             <Minus className="w-3.5 h-3.5" />
                           </button>
@@ -310,14 +322,16 @@ const CartPage = () => {
                             onClick={() =>
                               handleUpdateQuantity(item, item.quantity + 1)
                             }
-                            className="w-8 h-8 flex items-center justify-center hover:bg-[#EFEAE0] transition-colors text-[#14120F]"
+                            disabled={isUpdating}
+                            className="w-8 h-8 flex items-center justify-center hover:bg-[#EFEAE0] transition-colors text-[#14120F] disabled:opacity-40 disabled:cursor-not-allowed"
+                            aria-label="Increase quantity"
                           >
                             <Plus className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </div>
 
-                      {/* Line Item Total & Delete Actions */}
+                      {/* Line Item Total & Delete */}
                       <div className="md:col-span-2 flex items-center justify-between md:justify-end">
                         <span className="font-medium text-[#B08D4F] md:hidden text-sm">
                           Total: {formatCurrency(item.price * item.quantity)}
@@ -327,7 +341,8 @@ const CartPage = () => {
                         </span>
                         <button
                           onClick={() => handleRemoveItem(item)}
-                          className="ml-4 text-[#B7AC98] hover:text-[#8C4B3A] transition-colors"
+                          disabled={isUpdating}
+                          className="ml-4 text-[#B7AC98] hover:text-[#8C4B3A] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                           aria-label="Remove item"
                         >
                           <Trash2 className="w-4 h-4" strokeWidth={1.5} />
@@ -339,7 +354,7 @@ const CartPage = () => {
               </div>
             </div>
 
-            {/* Return Path Navigation */}
+            {/* Return Path */}
             <Link
               to="/shop"
               className="inline-flex items-center gap-2 mt-7 text-xs uppercase tracking-[0.2em] text-[#5C5348] hover:text-[#14120F] transition-colors"
@@ -348,7 +363,7 @@ const CartPage = () => {
             </Link>
           </div>
 
-          {/* Sticky Side Summary Bar */}
+          {/* Sticky Side Summary */}
           <div className="lg:col-span-1">
             <div className="bg-white border border-[#E6DFD1] p-7 sticky top-28">
               <h2 className="font-display text-xl text-[#14120F] mb-6">
@@ -386,17 +401,25 @@ const CartPage = () => {
                 </div>
               </div>
 
-              {/* Checkout CTA */}
               <button
                 onClick={handleCheckout}
-                disabled={items.length === 0}
+                disabled={items.length === 0 || isUpdating}
                 className="w-full mt-7 bg-[#14120F] text-[#F7F3EA] py-3.5 text-xs uppercase tracking-[0.2em] hover:bg-[#1F3D33] transition-colors duration-300 flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                Proceed to Checkout
-                <ArrowRight className="w-4 h-4" />
+                {isUpdating ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-[#F7F3EA] border-t-transparent rounded-full animate-spin mr-2" />
+                    Updating...
+                  </>
+                ) : (
+                  <>
+                    Proceed to Checkout
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
               </button>
 
-              {/* Security/Trust Messaging */}
+              {/* Trust Badges */}
               <div className="mt-7 space-y-2.5 text-xs">
                 <div className="flex items-center gap-2.5 text-[#5C5348] tracking-wide">
                   <Shield

@@ -1,5 +1,3 @@
-// src/redux/slices/cartSlice.js
-
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import * as cartApi from "../../api/cart";
 import toast from "react-hot-toast";
@@ -29,7 +27,6 @@ const loadCartFromLocalStorage = () => {
     const data = localStorage.getItem("cart");
     if (data) {
       const parsed = JSON.parse(data);
-      // Check if data is not too old (7 days)
       if (
         parsed.timestamp &&
         Date.now() - parsed.timestamp < 7 * 24 * 60 * 60 * 1000
@@ -38,7 +35,7 @@ const loadCartFromLocalStorage = () => {
           items: parsed.items || [],
           totalItems: parsed.totalItems || 0,
           totalPrice: parsed.totalPrice || 0,
-          isSynced: false, // Need to re-sync with server
+          isSynced: false,
         };
       }
     }
@@ -49,25 +46,25 @@ const loadCartFromLocalStorage = () => {
   }
 };
 
-// ✅ FIXED: Helper function to transform cart items safely
+// Helper: Transform cart items safely
 const transformCartItems = (items) => {
   if (!items || !Array.isArray(items)) return [];
 
   return items.map((item) => {
-    // Safely calculate price with variant adjustment
     const basePrice = item.product?.price || 0;
     const variantPrice = item.selectedVariant?.priceAdjustment || 0;
     const finalPrice = basePrice + variantPrice;
 
-    // Safely extract first image
     const image =
       item.product?.images && item.product.images.length > 0
         ? item.product.images[0]
         : null;
 
     return {
-      productId: item.product?._id || item.product || "",
-      _id: item.product?._id || item.product || "",
+      // ✅ IMPORTANT: Use the cart item's _id as the itemId
+      itemId: item._id || item.product?._id || "",
+      productId: item.product?._id || "",
+      _id: item._id || item.product?._id || "",
       name: item.product?.name || "Unknown Product",
       price: finalPrice,
       image: image,
@@ -75,11 +72,12 @@ const transformCartItems = (items) => {
       slug: item.product?.slug || "",
       selectedVariant: item.selectedVariant || null,
       product: item.product || null,
+      productPrice: basePrice,
     };
   });
 };
 
-// ✅ ADDED: Helper function to update cart totals safely (DRY principle)
+// Helper: Update cart totals safely
 const updateCartTotals = (state) => {
   if (!state.items || !Array.isArray(state.items)) {
     state.items = [];
@@ -132,9 +130,25 @@ export const addToCart = createAsyncThunk(
   "cart/addToCart",
   async (
     { productId, quantity = 1, selectedVariant = null },
-    { rejectWithValue },
+    { rejectWithValue, getState },
   ) => {
     try {
+      // ✅ Optimistic: Check if item already exists
+      const state = getState();
+      const existingItem = state.cart.items.find(
+        (item) => item.productId === productId,
+      );
+
+      // If item exists, we'll just update quantity
+      if (existingItem) {
+        const newQuantity = existingItem.quantity + quantity;
+        const response = await cartApi.updateCartItem(
+          existingItem.itemId,
+          newQuantity,
+        );
+        return response.data.data;
+      }
+
       const response = await cartApi.addToCart(
         productId,
         quantity,
@@ -142,53 +156,44 @@ export const addToCart = createAsyncThunk(
       );
       return response.data.data;
     } catch (error) {
-      // ✅ Extract stock error message from response
       const message = error.response?.data?.message || "Failed to add to cart";
-
-      // ✅ Show toast with specific error
       toast.error(message);
-
       return rejectWithValue(message);
     }
   },
 );
 
+// ✅ FIXED: Use itemId from cart item
 export const updateCartItem = createAsyncThunk(
   "cart/updateCartItem",
-  async (
-    { productId, quantity, selectedVariant = null },
-    { rejectWithValue },
-  ) => {
+  async ({ itemId, quantity }, { rejectWithValue }) => {
     try {
-      const response = await cartApi.updateCartItem(
-        productId,
-        quantity,
-        selectedVariant,
-      );
+      const response = await cartApi.updateCartItem(itemId, quantity);
       return response.data.data;
     } catch (error) {
-      return rejectWithValue(
-        error.response?.data?.message || "Failed to update cart",
-      );
+      const message = error.response?.data?.message || "Failed to update cart";
+      toast.error(message);
+      return rejectWithValue(message);
     }
   },
 );
 
+// ✅ FIXED: Use itemId from cart item
 export const removeFromCart = createAsyncThunk(
   "cart/removeFromCart",
-  async ({ productId, selectedVariant = null }, { rejectWithValue }) => {
+  async ({ itemId }, { rejectWithValue }) => {
     try {
-      const response = await cartApi.removeFromCart(productId, selectedVariant);
+      const response = await cartApi.removeFromCart(itemId);
       return response.data.data;
     } catch (error) {
-      return rejectWithValue(
-        error.response?.data?.message || "Failed to remove from cart",
-      );
+      const message =
+        error.response?.data?.message || "Failed to remove from cart";
+      toast.error(message);
+      return rejectWithValue(message);
     }
   },
 );
 
-// ✅ RENAMED: clearCart → clearCartThunk to avoid naming conflict with reducer
 export const clearCartThunk = createAsyncThunk(
   "cart/clearCartThunk",
   async (_, { rejectWithValue }) => {
@@ -218,7 +223,7 @@ export const syncCart = createAsyncThunk(
 );
 
 // ============================================
-// Selectors with default values to prevent NaN
+// Selectors
 // ============================================
 
 export const selectCartItems = (state) => state.cart?.items || [];
@@ -276,9 +281,7 @@ const cartSlice = createSlice({
   },
   extraReducers: (builder) => {
     builder
-      // ============================================
       // Fetch Cart
-      // ============================================
       .addCase(fetchCart.pending, (state) => {
         state.isLoading = true;
         state.error = null;
@@ -295,9 +298,7 @@ const cartSlice = createSlice({
         state.error = action.payload || "Failed to fetch cart";
       })
 
-      // ============================================
       // Add to Cart
-      // ============================================
       .addCase(addToCart.pending, (state) => {
         state.isLoading = true;
         state.error = null;
@@ -313,12 +314,9 @@ const cartSlice = createSlice({
       .addCase(addToCart.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload || "Failed to add to cart";
-        // Note: toast.error is handled inside the Thunk itself, but we still handle the slice error state here
       })
 
-      // ============================================
       // Update Cart Item
-      // ============================================
       .addCase(updateCartItem.pending, (state) => {
         state.isLoading = true;
         state.error = null;
@@ -333,12 +331,9 @@ const cartSlice = createSlice({
       .addCase(updateCartItem.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload || "Failed to update cart";
-        toast.error(action.payload || "Failed to update cart");
       })
 
-      // ============================================
       // Remove from Cart
-      // ============================================
       .addCase(removeFromCart.pending, (state) => {
         state.isLoading = true;
         state.error = null;
@@ -354,12 +349,9 @@ const cartSlice = createSlice({
       .addCase(removeFromCart.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload || "Failed to remove from cart";
-        toast.error(action.payload || "Failed to remove from cart");
       })
 
-      // ============================================
-      // Clear Cart (Thunk)
-      // ============================================
+      // Clear Cart
       .addCase(clearCartThunk.pending, (state) => {
         state.isLoading = true;
         state.error = null;
@@ -376,12 +368,9 @@ const cartSlice = createSlice({
       .addCase(clearCartThunk.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload || "Failed to clear cart";
-        toast.error(action.payload || "Failed to clear cart");
       })
 
-      // ============================================
       // Sync Cart
-      // ============================================
       .addCase(syncCart.pending, (state) => {
         state.isLoading = true;
         state.error = null;
@@ -397,7 +386,6 @@ const cartSlice = createSlice({
       .addCase(syncCart.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload || "Failed to sync cart";
-        toast.error(action.payload || "Failed to sync cart");
       });
   },
 });
@@ -409,7 +397,6 @@ export const {
   clearCartError,
 } = cartSlice.actions;
 
-// ✅ Add this alias for backward compatibility
 export const clearCart = clearCartState;
 
 export default cartSlice.reducer;

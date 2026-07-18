@@ -12,18 +12,14 @@ export const addToCart = (productId, quantity = 1, selectedVariant = null) => {
   });
 };
 
-export const updateCartItem = (productId, quantity, selectedVariant = null) => {
-  return api.put(`/cart/items/${productId}`, {
-    quantity,
-    selectedVariant,
-  });
+// ✅ FIXED: Use itemId from the cart item, not productId
+export const updateCartItem = (itemId, quantity) => {
+  return api.put(`/cart/items/${itemId}`, { quantity });
 };
 
-// ✅ FIXED: Properly send selectedVariant in the request body
-export const removeFromCart = (productId, selectedVariant = null) => {
-  return api.delete(`/cart/items/${productId}`, {
-    data: { selectedVariant },
-  });
+// ✅ FIXED: Use itemId from the cart item, not productId
+export const removeFromCart = (itemId) => {
+  return api.delete(`/cart/items/${itemId}`);
 };
 
 export const clearCart = () => {
