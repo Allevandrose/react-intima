@@ -96,6 +96,24 @@ const updateCartTotals = (state) => {
   );
 };
 
+// ✅ FIXED: Clear cart completely (both Redux and localStorage)
+const clearCartCompletely = (state) => {
+  state.items = [];
+  state.totalItems = 0;
+  state.totalPrice = 0;
+  state.isSynced = false;
+  state.error = null;
+  state.isLoading = false;
+  // Remove from localStorage
+  localStorage.removeItem("cart");
+  // Also remove from sessionStorage as a safety measure
+  try {
+    sessionStorage.removeItem("cart");
+  } catch (e) {
+    // Ignore
+  }
+};
+
 // Load initial state from localStorage
 const localCartData = loadCartFromLocalStorage();
 
@@ -194,16 +212,18 @@ export const removeFromCart = createAsyncThunk(
   },
 );
 
+// ✅ FIXED: Clear cart with comprehensive cleanup
 export const clearCartThunk = createAsyncThunk(
   "cart/clearCartThunk",
   async (_, { rejectWithValue }) => {
     try {
+      // Call the backend API to clear the cart
       const response = await cartApi.clearCart();
       return response.data.data;
     } catch (error) {
-      return rejectWithValue(
-        error.response?.data?.message || "Failed to clear cart",
-      );
+      // Even if backend fails, we should still clear locally
+      console.warn("Backend clear failed, but we'll clear locally:", error);
+      return { items: [] };
     }
   },
 );
@@ -253,13 +273,9 @@ const cartSlice = createSlice({
   name: "cart",
   initialState,
   reducers: {
+    // ✅ FIXED: Comprehensive cart clear
     clearCartState: (state) => {
-      state.items = [];
-      state.totalItems = 0;
-      state.totalPrice = 0;
-      state.isSynced = false;
-      state.error = null;
-      localStorage.removeItem("cart");
+      clearCartCompletely(state);
     },
     setCartFromLocal: (state, action) => {
       state.items = action.payload || [];
@@ -277,6 +293,10 @@ const cartSlice = createSlice({
     },
     clearCartError: (state) => {
       state.error = null;
+    },
+    // ✅ NEW: Force reset cart (for logout scenarios)
+    resetCartState: (state) => {
+      clearCartCompletely(state);
     },
   },
   extraReducers: (builder) => {
@@ -351,23 +371,26 @@ const cartSlice = createSlice({
         state.error = action.payload || "Failed to remove from cart";
       })
 
-      // Clear Cart
+      // ✅ FIXED: Clear Cart - Comprehensive cleanup
       .addCase(clearCartThunk.pending, (state) => {
         state.isLoading = true;
         state.error = null;
       })
-      .addCase(clearCartThunk.fulfilled, (state) => {
+      .addCase(clearCartThunk.fulfilled, (state, action) => {
         state.isLoading = false;
-        state.items = [];
-        state.totalItems = 0;
-        state.totalPrice = 0;
+        // ✅ Clear everything
+        clearCartCompletely(state);
+        // ✅ Mark as synced since we called the API
         state.isSynced = true;
-        localStorage.removeItem("cart");
         toast.success("Cart cleared");
       })
       .addCase(clearCartThunk.rejected, (state, action) => {
         state.isLoading = false;
+        // ✅ Even on rejection, clear locally
+        clearCartCompletely(state);
         state.error = action.payload || "Failed to clear cart";
+        // Show a warning but don't block the user
+        toast.warning("Cart cleared locally, but sync may have failed");
       })
 
       // Sync Cart
@@ -395,8 +418,10 @@ export const {
   setCartFromLocal,
   restoreCartFromLocal,
   clearCartError,
+  resetCartState, // ✅ NEW: Export reset action
 } = cartSlice.actions;
 
+// ✅ Keep both clearCart and clearCartState for compatibility
 export const clearCart = clearCartState;
 
 export default cartSlice.reducer;

@@ -1,6 +1,6 @@
 /**
  * CheckoutPage — Complete fixed version
- * Fixes: Order creation, payment initiation, error handling, loading states
+ * Fixes: Order creation, payment initiation, error handling, loading states, cart clearing
  */
 import React, { useState, useEffect } from "react";
 import { useSelector, useDispatch } from "react-redux";
@@ -27,6 +27,7 @@ import {
   selectShipping,
   selectTotal,
   clearCartState,
+  clearCartThunk, // ✅ ADDED: Import the thunk
 } from "../../redux/slices/cartSlice";
 
 // ✅ Import orders actions
@@ -55,6 +56,8 @@ const CheckoutPage = () => {
   const [checkoutError, setCheckoutError] = useState(null);
   const [checkoutStep, setCheckoutStep] = useState("idle");
   const [createdOrder, setCreatedOrder] = useState(null);
+  // ✅ NEW: Flag to prevent "cart empty" redirect during checkout
+  const [isRedirecting, setIsRedirecting] = useState(false);
 
   const [formData, setFormData] = useState({
     street: "",
@@ -67,7 +70,11 @@ const CheckoutPage = () => {
 
   const [errors, setErrors] = useState({});
 
+  // ✅ FIXED: Prevent redirect during checkout
   useEffect(() => {
+    // ✅ Skip all checks if we're in the redirecting phase
+    if (isRedirecting) return;
+
     if (!isAuthenticated) {
       toast.error("Please login to checkout");
       navigate("/login", { state: { from: "/checkout" } });
@@ -83,7 +90,7 @@ const CheckoutPage = () => {
     if (user?.phone) {
       setFormData((prev) => ({ ...prev, phone: user.phone }));
     }
-  }, [isAuthenticated, items.length, navigate, user]);
+  }, [isAuthenticated, items.length, navigate, user, isRedirecting]);
 
   const formatCurrency = (amount) => {
     if (!amount || isNaN(amount) || amount === 0) {
@@ -192,18 +199,18 @@ const CheckoutPage = () => {
       const order = orderResponse.data.data;
       setCreatedOrder(order);
       console.log("✅ Order created:", order.orderNumber);
-      console.log("✅ Order ID:", order.id); // ✅ FIXED: Use 'id' not '_id'
+      console.log("✅ Order ID:", order.id);
 
       // Show success toast
       toast.success(`Order ${order.orderNumber} created!`);
 
       // ─── Step 2: Initiate Payment ───
       setCheckoutStep("paying");
-      console.log("💳 Initiating payment for order:", order.id); // ✅ FIXED: Use 'id'
+      console.log("💳 Initiating payment for order:", order.id);
 
       const paymentResponse = await api.post("/payments/initiate", {
-        orderId: order.id, // ✅ FIXED: Use 'id' not '_id'
-        paymentMethod: "checkout", // Use checkout link (supports all methods)
+        orderId: order.id,
+        paymentMethod: "checkout",
       });
 
       console.log("💳 Payment response:", paymentResponse.data);
@@ -219,10 +226,32 @@ const CheckoutPage = () => {
       // ─── Step 3: Redirect to Payment ───
       if (paymentData.paymentUrl) {
         setCheckoutStep("redirecting");
+        // ✅ Set redirecting flag to prevent "cart empty" redirect
+        setIsRedirecting(true);
         console.log("🔗 Redirecting to payment URL:", paymentData.paymentUrl);
 
-        // ✅ Clear cart after successful order
-        dispatch(clearCartState());
+        // ✅ STEP A: Clear backend cart first
+        try {
+          await api.delete("/cart");
+          console.log("✅ Backend cart cleared successfully");
+        } catch (err) {
+          console.warn("⚠️ Could not clear backend cart:", err);
+          // Don't block the payment flow if cart clear fails
+        }
+
+        // ✅ STEP B: Clear frontend cart (Redux + localStorage)
+        try {
+          // Use clearCartThunk to clear both frontend and backend
+          await dispatch(clearCartThunk()).unwrap();
+          console.log("✅ Frontend cart cleared via Redux");
+        } catch (err) {
+          console.warn("⚠️ Could not clear frontend cart via Redux:", err);
+          // Fallback: manual clear
+          dispatch(clearCartState());
+          localStorage.removeItem("cart");
+        }
+
+        // ✅ Double-check localStorage is cleared
         localStorage.removeItem("cart");
 
         // ✅ Show SweetAlert before redirect
@@ -299,6 +328,8 @@ const CheckoutPage = () => {
       setCheckoutError(errorMessage);
       toast.error(errorMessage);
       setCheckoutStep("idle");
+      // ✅ Reset redirecting flag on error
+      setIsRedirecting(false);
     } finally {
       setIsProcessing(false);
     }

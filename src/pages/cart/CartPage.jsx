@@ -20,6 +20,7 @@ import {
   selectSubtotal,
   selectShipping,
   selectTotal,
+  fetchCart, // ✅ Added: To refresh cart on mount
 } from "../../redux/slices/cartSlice";
 import toast from "react-hot-toast";
 import Swal from "sweetalert2";
@@ -35,6 +36,22 @@ const CartPage = () => {
   const total = useSelector(selectTotal) || 0;
   const { isAuthenticated } = useSelector((state) => state.auth);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // ✅ NEW: Refresh cart on mount to ensure it's in sync with backend
+  React.useEffect(() => {
+    if (isAuthenticated) {
+      setIsLoading(true);
+      dispatch(fetchCart())
+        .unwrap()
+        .catch((err) => {
+          console.warn("Failed to fetch cart on mount:", err);
+        })
+        .finally(() => {
+          setIsLoading(false);
+        });
+    }
+  }, [dispatch, isAuthenticated]);
 
   const formatCurrency = (amount) => {
     if (!amount || isNaN(amount) || amount === 0) {
@@ -127,6 +144,7 @@ const CartPage = () => {
     }
   };
 
+  // ✅ FIXED: Clear cart with proper error handling
   const handleClearCart = async () => {
     const result = await Swal.fire({
       title: "Clear Bag?",
@@ -141,16 +159,24 @@ const CartPage = () => {
     });
 
     if (result.isConfirmed) {
-      dispatch(clearCartThunk());
-      await Swal.fire({
-        icon: "success",
-        title: "Cleared!",
-        text: "Your bag is now empty.",
-        timer: 1500,
-        showConfirmButton: false,
-        background: "#F7F3EA",
-        iconColor: "#B08D4F",
-      });
+      setIsUpdating(true);
+      try {
+        await dispatch(clearCartThunk()).unwrap();
+        await Swal.fire({
+          icon: "success",
+          title: "Cleared!",
+          text: "Your bag is now empty.",
+          timer: 1500,
+          showConfirmButton: false,
+          background: "#F7F3EA",
+          iconColor: "#B08D4F",
+        });
+      } catch (error) {
+        console.error("Failed to clear cart:", error);
+        toast.error("Failed to clear cart. Please try again.");
+      } finally {
+        setIsUpdating(false);
+      }
     }
   };
 
@@ -168,8 +194,31 @@ const CartPage = () => {
       navigate("/login");
       return;
     }
+
+    // ✅ Check if cart has items before proceeding
+    if (items.length === 0) {
+      toast.error("Your cart is empty");
+      return;
+    }
+
     navigate("/checkout");
   };
+
+  // Loading State
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-[#F7F3EA] font-['Work_Sans'] flex items-center justify-center">
+        <style>{`
+          @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;0,9..144,600;1,9..144,400&family=Work+Sans:wght@300;400;500;600&display=swap');
+          .font-display { font-family: 'Fraunces', serif; }
+        `}</style>
+        <div className="text-center">
+          <div className="w-12 h-12 border-4 border-[#E6DFD1] border-t-[#B08D4F] rounded-full animate-spin mx-auto"></div>
+          <p className="text-[#8C7B6B] text-sm mt-4">Loading your bag...</p>
+        </div>
+      </div>
+    );
+  }
 
   // Empty State
   if (items.length === 0) {
@@ -216,7 +265,8 @@ const CartPage = () => {
           <h1 className="font-display text-4xl text-[#14120F]">Your Bag</h1>
           <button
             onClick={handleClearCart}
-            className="text-xs uppercase tracking-[0.2em] text-[#8C4B3A] hover:text-[#73392D] transition-colors"
+            disabled={isUpdating}
+            className="text-xs uppercase tracking-[0.2em] text-[#8C4B3A] hover:text-[#73392D] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             Clear Bag
           </button>
