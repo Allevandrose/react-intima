@@ -1,5 +1,6 @@
 /**
- * CheckoutPage — luxury boutique redesign
+ * CheckoutPage — Complete fixed version
+ * Fixes: Order creation, payment initiation, error handling, loading states
  */
 import React, { useState, useEffect } from "react";
 import { useSelector, useDispatch } from "react-redux";
@@ -11,8 +12,10 @@ import {
   ArrowLeft,
   Loader,
   AlertCircle,
+  CheckCircle,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import Swal from "sweetalert2";
 
 // ✅ Import the configured api instance
 import api from "../../api/index";
@@ -26,6 +29,12 @@ import {
   clearCartState,
 } from "../../redux/slices/cartSlice";
 
+// ✅ Import orders actions
+import {
+  createOrderThunk,
+  initiatePaymentThunk,
+} from "../../redux/slices/ordersSlice";
+
 const CheckoutPage = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
@@ -37,11 +46,15 @@ const CheckoutPage = () => {
   const total = useSelector(selectTotal) || 0;
 
   const { isAuthenticated, user } = useSelector((state) => state.auth);
+  const { loading: ordersLoading, error: ordersError } = useSelector(
+    (state) => state.orders,
+  );
 
   // ✅ Local state management
   const [isProcessing, setIsProcessing] = useState(false);
   const [checkoutError, setCheckoutError] = useState(null);
   const [checkoutStep, setCheckoutStep] = useState("idle");
+  const [createdOrder, setCreatedOrder] = useState(null);
 
   const [formData, setFormData] = useState({
     street: "",
@@ -56,11 +69,13 @@ const CheckoutPage = () => {
 
   useEffect(() => {
     if (!isAuthenticated) {
-      navigate("/login");
+      toast.error("Please login to checkout");
+      navigate("/login", { state: { from: "/checkout" } });
       return;
     }
 
     if (items.length === 0) {
+      toast.error("Your cart is empty");
       navigate("/cart");
       return;
     }
@@ -94,17 +109,19 @@ const CheckoutPage = () => {
 
   const validate = () => {
     const newErrors = {};
-    if (!formData.street) newErrors.street = "Street address is required";
-    if (!formData.city) newErrors.city = "City is required";
-    if (!formData.county) newErrors.county = "County is required";
-    if (!formData.phone) newErrors.phone = "Phone number is required";
-    else if (formData.phone.length < 10)
-      newErrors.phone = "Enter a valid phone number";
+    if (!formData.street?.trim())
+      newErrors.street = "Street address is required";
+    if (!formData.city?.trim()) newErrors.city = "City is required";
+    if (!formData.county?.trim()) newErrors.county = "County is required";
+    if (!formData.phone?.trim()) newErrors.phone = "Phone number is required";
+    else if (formData.phone.replace(/\D/g, "").length < 10) {
+      newErrors.phone = "Enter a valid phone number (e.g., 0712345678)";
+    }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  // ✅ Updated checkout flow using the configured api instance
+  // ✅ MAIN CHECKOUT FUNCTION - Complete flow
   const handleCheckout = async () => {
     if (isProcessing) return;
     setCheckoutError(null);
@@ -145,44 +162,47 @@ const CheckoutPage = () => {
         return itemData;
       }),
       shippingAddress: {
-        street: formData.street,
-        city: formData.city,
-        county: formData.county,
-        postalCode: formData.postalCode || "00100",
+        street: formData.street.trim(),
+        city: formData.city.trim(),
+        county: formData.county.trim(),
+        postalCode: formData.postalCode?.trim() || "00100",
         phone: phone,
       },
-      notes: formData.notes,
+      notes: formData.notes?.trim() || "",
     };
 
     console.log("🛒 Processing checkout...");
-    console.log("📦 Creating order with data:", orderData);
-    console.log("🔑 Token present:", !!localStorage.getItem("token"));
+    console.log("📦 Order data:", orderData);
 
     setIsProcessing(true);
 
     try {
       // ─── Step 1: Create Order ───
       setCheckoutStep("creating");
+      console.log("📝 Creating order...");
 
-      // ✅ Use the configured api instance - token is automatically added
       const orderResponse = await api.post("/orders", orderData);
 
-      console.log("✅ Order created:", orderResponse.data);
+      console.log("✅ Order response:", orderResponse.data);
 
       if (!orderResponse.data.success) {
         throw new Error(orderResponse.data.message || "Failed to create order");
       }
 
       const order = orderResponse.data.data;
-      toast.success("Order created successfully!");
+      setCreatedOrder(order);
+      console.log("✅ Order created:", order.orderNumber);
+
+      // Show success toast
+      toast.success(`Order ${order.orderNumber} created!`);
 
       // ─── Step 2: Initiate Payment ───
       setCheckoutStep("paying");
       console.log("💳 Initiating payment for order:", order._id);
 
-      // ✅ Use the configured api instance - token is automatically added
       const paymentResponse = await api.post("/payments/initiate", {
         orderId: order._id,
+        paymentMethod: "checkout", // Use checkout link (supports all methods)
       });
 
       console.log("💳 Payment response:", paymentResponse.data);
@@ -202,18 +222,34 @@ const CheckoutPage = () => {
 
         // ✅ Clear cart after successful order
         dispatch(clearCartState());
+        localStorage.removeItem("cart");
 
+        // ✅ Show SweetAlert before redirect
+        await Swal.fire({
+          icon: "success",
+          title: "Order Created!",
+          text: `Order #${order.orderNumber} created. You will be redirected to payment.`,
+          timer: 2000,
+          showConfirmButton: false,
+          background: "#F7F3EA",
+          iconColor: "#B08D4F",
+          timerProgressBar: true,
+        });
+
+        // ✅ Redirect to IntaSend
         setTimeout(() => {
           window.location.href = paymentData.paymentUrl;
         }, 500);
       } else {
-        throw new Error("No payment URL received");
+        throw new Error("No payment URL received from payment provider");
       }
     } catch (error) {
       console.error("❌ Checkout error:", error);
 
       // ✅ Better error handling
       let errorMessage = "Checkout failed. Please try again.";
+      let errorTitle = "Checkout Failed";
+
       if (error.response?.data?.message) {
         errorMessage = error.response.data.message;
       } else if (error.message) {
@@ -222,10 +258,41 @@ const CheckoutPage = () => {
 
       // Check if it's an authentication error
       if (error.response?.status === 401 || error.response?.status === 403) {
+        errorTitle = "Session Expired";
         errorMessage = "Your session has expired. Please login again.";
+        setCheckoutError(errorMessage);
+        toast.error(errorMessage);
+
+        // Show SweetAlert for session expiry
+        await Swal.fire({
+          icon: "warning",
+          title: errorTitle,
+          text: errorMessage,
+          background: "#F7F3EA",
+          iconColor: "#B08D4F",
+          confirmButtonColor: "#14120F",
+          confirmButtonText: "Login Now",
+        });
+
         setTimeout(() => {
-          navigate("/login");
-        }, 2000);
+          navigate("/login", { state: { from: "/checkout" } });
+        }, 500);
+        return;
+      }
+
+      // Stock or validation errors
+      if (
+        errorMessage.includes("stock") ||
+        errorMessage.includes("available")
+      ) {
+        await Swal.fire({
+          icon: "error",
+          title: "Stock Issue",
+          text: errorMessage,
+          background: "#F7F3EA",
+          iconColor: "#8C4B3A",
+          confirmButtonColor: "#14120F",
+        });
       }
 
       setCheckoutError(errorMessage);
@@ -249,6 +316,19 @@ const CheckoutPage = () => {
     }
   };
 
+  const getStepDescription = () => {
+    switch (checkoutStep) {
+      case "creating":
+        return "Please wait while we create your order";
+      case "paying":
+        return "Connecting to secure payment gateway";
+      case "redirecting":
+        return "You will be redirected to IntaSend payment page";
+      default:
+        return "Please wait, do not close this page";
+    }
+  };
+
   if (isProcessing && checkoutStep !== "idle") {
     return (
       <div className="min-h-screen bg-[#F7F3EA] font-['Work_Sans']">
@@ -257,16 +337,48 @@ const CheckoutPage = () => {
           .font-display { font-family: 'Fraunces', serif; }
         `}</style>
         <div className="min-h-[60vh] flex flex-col items-center justify-center px-5">
-          <Loader
-            className="w-10 h-10 text-[#B08D4F] animate-spin mb-6"
-            strokeWidth={1.5}
-          />
-          <h2 className="font-display text-2xl text-[#14120F] mb-2">
+          <div className="relative">
+            <div className="w-16 h-16 border-4 border-[#E6DFD1] border-t-[#B08D4F] rounded-full animate-spin"></div>
+            {checkoutStep === "creating" && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-[#B08D4F] text-xs font-medium">1/3</span>
+              </div>
+            )}
+            {checkoutStep === "paying" && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-[#B08D4F] text-xs font-medium">2/3</span>
+              </div>
+            )}
+            {checkoutStep === "redirecting" && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <span className="text-[#B08D4F] text-xs font-medium">3/3</span>
+              </div>
+            )}
+          </div>
+          <h2 className="font-display text-2xl text-[#14120F] mt-6 mb-2">
             {getStepLabel()}
           </h2>
           <p className="text-[#8C7B6B] text-sm tracking-wide">
-            Please wait, do not close this page
+            {getStepDescription()}
           </p>
+          {createdOrder && (
+            <p className="text-xs text-[#B08D4F] mt-4 font-medium">
+              Order #{createdOrder.orderNumber}
+            </p>
+          )}
+          <div className="mt-6 w-full max-w-xs bg-[#EFEAE0] h-1 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-[#B08D4F] transition-all duration-500 rounded-full"
+              style={{
+                width:
+                  checkoutStep === "creating"
+                    ? "33%"
+                    : checkoutStep === "paying"
+                      ? "66%"
+                      : "100%",
+              }}
+            />
+          </div>
         </div>
       </div>
     );
@@ -288,6 +400,7 @@ const CheckoutPage = () => {
         <button
           onClick={() => navigate("/cart")}
           className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-[#5C5348] hover:text-[#14120F] transition-colors mb-8"
+          disabled={isProcessing}
         >
           <ArrowLeft className="w-4 h-4" strokeWidth={1.5} />
           Back to Cart
@@ -295,6 +408,9 @@ const CheckoutPage = () => {
 
         <div className="mb-10 border-b border-[#E6DFD1] pb-8">
           <h1 className="font-display text-4xl text-[#14120F]">Checkout</h1>
+          <p className="text-[#8C7B6B] text-sm mt-2 tracking-wide">
+            {items.length} item{items.length > 1 ? "s" : ""} in your bag
+          </p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-10 lg:gap-14">
@@ -378,6 +494,9 @@ const CheckoutPage = () => {
                       <option value="Thika">Thika</option>
                       <option value="Malindi">Malindi</option>
                       <option value="Kitale">Kitale</option>
+                      <option value="Kakamega">Kakamega</option>
+                      <option value="Nyeri">Nyeri</option>
+                      <option value="Meru">Meru</option>
                     </select>
                     {errors.county && (
                       <p className="text-[#8C4B3A] text-xs mt-1.5 tracking-wide">
@@ -408,6 +527,9 @@ const CheckoutPage = () => {
                         {errors.phone}
                       </p>
                     )}
+                    <p className="text-[11px] text-[#8C7B6B] mt-1 tracking-wide">
+                      For delivery confirmation and M-Pesa payments
+                    </p>
                   </div>
 
                   <div>
@@ -481,7 +603,7 @@ const CheckoutPage = () => {
               <div className="max-h-48 overflow-y-auto space-y-2.5 mb-5 pr-1">
                 {items.map((item, index) => (
                   <div
-                    key={index}
+                    key={`${item.productId}-${index}`}
                     className="flex justify-between gap-3 text-sm"
                   >
                     <span className="text-[#5C5348]">

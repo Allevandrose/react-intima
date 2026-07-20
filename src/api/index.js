@@ -1,8 +1,12 @@
 import axios from "axios";
 
-const API_URL = import.meta.env.VITE_API_URL;
+// ✅ FIXED: Use environment variable with fallback and logging
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
-// Create axios instance
+// ✅ Log the API URL so you can see what's being used
+console.log(`🔗 API URL: ${API_URL}`);
+
+// ✅ Create axios instance
 const api = axios.create({
   baseURL: API_URL,
   headers: {
@@ -20,8 +24,6 @@ export const getAuthToken = () => {
 // Set auth token
 export const setAuthToken = (token) => {
   if (token) {
-    // Only set in localStorage - sessionStorage is handled separately
-    // The caller (authSlice) decides where to store based on rememberMe
     api.defaults.headers.common["Authorization"] = `Bearer ${token}`;
   } else {
     delete api.defaults.headers.common["Authorization"];
@@ -32,8 +34,7 @@ export const setAuthToken = (token) => {
 export const getImageUrl = (path) => {
   if (!path) return null;
   if (path.startsWith("http")) return path;
-  const baseUrl = import.meta.env.VITE_API_URL;
-  // Remove trailing slash from baseUrl if it ends with /api
+  const baseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
   const cleanBaseUrl = baseUrl.replace(/\/api$/, "");
   return `${cleanBaseUrl}${path}`;
 };
@@ -45,6 +46,10 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    // ✅ Log the full URL being called
+    console.log(
+      `📤 ${config.method?.toUpperCase()} ${config.baseURL}${config.url}`,
+    );
     return config;
   },
   (error) => {
@@ -56,6 +61,9 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    // ✅ Log the error URL
+    console.error(`❌ API Error:`, error.response?.status, error.config?.url);
+
     // Only redirect on 401 if it's not an auth endpoint and we have a token
     if (error.response?.status === 401) {
       const isAuthEndpoint = error.config?.url?.includes("/auth/");
