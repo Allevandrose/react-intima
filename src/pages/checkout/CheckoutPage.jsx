@@ -192,16 +192,17 @@ const CheckoutPage = () => {
       const order = orderResponse.data.data;
       setCreatedOrder(order);
       console.log("✅ Order created:", order.orderNumber);
+      console.log("✅ Order ID:", order.id); // ✅ FIXED: Use 'id' not '_id'
 
       // Show success toast
       toast.success(`Order ${order.orderNumber} created!`);
 
       // ─── Step 2: Initiate Payment ───
       setCheckoutStep("paying");
-      console.log("💳 Initiating payment for order:", order._id);
+      console.log("💳 Initiating payment for order:", order.id); // ✅ FIXED: Use 'id'
 
       const paymentResponse = await api.post("/payments/initiate", {
-        orderId: order._id,
+        orderId: order.id, // ✅ FIXED: Use 'id' not '_id'
         paymentMethod: "checkout", // Use checkout link (supports all methods)
       });
 

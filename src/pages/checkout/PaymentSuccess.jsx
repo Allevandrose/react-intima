@@ -20,6 +20,7 @@ const PaymentSuccess = () => {
   const [orderData, setOrderData] = useState(null);
   const [pollingCount, setPollingCount] = useState(0);
   const [errorMessage, setErrorMessage] = useState(null);
+  const [orderId, setOrderId] = useState(null);
 
   // ✅ Get order from URL params
   const orderNumber =
@@ -93,7 +94,9 @@ const PaymentSuccess = () => {
       }
 
       console.log("📦 Found order:", order);
+      console.log("📦 Order ID:", order.id); // ✅ FIXED: Use 'id'
       setOrderData(order);
+      setOrderId(order.id); // ✅ FIXED: Store 'id'
 
       // ✅ Check order status
       if (order.status === "paid") {
@@ -106,7 +109,7 @@ const PaymentSuccess = () => {
       if (order.status === "pending" || order.status === "processing") {
         // Check payment status
         try {
-          const statusResponse = await api.get(`/payments/status/${order._id}`);
+          const statusResponse = await api.get(`/payments/status/${order.id}`); // ✅ FIXED: Use 'id'
           console.log("📊 Payment status:", statusResponse.data);
 
           if (statusResponse.data.success) {
@@ -116,8 +119,9 @@ const PaymentSuccess = () => {
               setStatus("success");
               toast.success("Payment confirmed! 🎉");
               // Refresh order data
-              const updatedOrder = await api.get(`/orders/${order._id}`);
+              const updatedOrder = await api.get(`/orders/${order.id}`); // ✅ FIXED: Use 'id'
               setOrderData(updatedOrder.data.data);
+              setOrderId(updatedOrder.data.data.id); // ✅ FIXED: Use 'id'
               return;
             }
 
@@ -173,14 +177,19 @@ const PaymentSuccess = () => {
 
     setStatus("loading");
     try {
-      const response = await api.get(`/payments/status/${orderData._id}`);
+      const response = await api.get(
+        `/payments/status/${orderId || orderData.id}`,
+      ); // ✅ FIXED: Use 'id'
       if (response.data.success) {
         const { orderStatus } = response.data.data;
         if (orderStatus === "paid") {
           setStatus("success");
           toast.success("Payment confirmed! 🎉");
-          const updatedOrder = await api.get(`/orders/${orderData._id}`);
+          const updatedOrder = await api.get(
+            `/orders/${orderId || orderData.id}`,
+          ); // ✅ FIXED: Use 'id'
           setOrderData(updatedOrder.data.data);
+          setOrderId(updatedOrder.data.data.id); // ✅ FIXED: Use 'id'
         } else {
           toast.info("Payment still processing. Please wait.");
           setStatus("pending");
