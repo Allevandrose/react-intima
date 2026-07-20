@@ -8,9 +8,6 @@ import {
 import { setAuthToken, getAuthToken } from "../../api/index";
 import { clearCartState } from "./cartSlice";
 
-// ✅ FIX: Import axios to remove auth header
-import axios from "axios";
-
 // Check both localStorage and sessionStorage for token
 const getStoredToken = () => {
   const token = localStorage.getItem("token");
@@ -61,7 +58,7 @@ const authSlice = createSlice({
     setError: (state, action) => {
       state.error = action.payload;
     },
-    // ✅ Immediate logout - clears state without waiting for API
+    // ✅ FIXED: Use setAuthToken to properly remove the header
     clearAuth: (state) => {
       state.user = null;
       state.token = null;
@@ -73,8 +70,8 @@ const authSlice = createSlice({
       localStorage.removeItem("refreshToken");
       localStorage.removeItem("user");
       sessionStorage.removeItem("token");
-      // ✅ FIX: Remove auth header from axios
-      delete axios.defaults.headers.common["Authorization"];
+      // ✅ FIX: Use setAuthToken to properly remove the header
+      setAuthToken(null);
     },
     clearError: (state) => {
       state.error = null;
@@ -92,17 +89,25 @@ export const {
   setRememberMe,
 } = authSlice.actions;
 
-// ✅ OPTIMIZED: Logout clears state immediately, API call is non-blocking
+// ✅ FIXED: Logout handles API call first, then clears local state
 export const logoutUser = () => async (dispatch) => {
-  // ✅ Clear auth state FIRST (instant)
+  // ✅ Step 1: Try server logout (with current token)
+  try {
+    await apiLogout();
+    console.log("✅ Server logout successful");
+  } catch (error) {
+    // ✅ Server logout failed - ignore, we'll clear locally anyway
+    const status = error.response?.status;
+    if (status === 401) {
+      console.debug("Token expired, clearing locally");
+    } else {
+      console.debug("Logout API call failed:", error.message);
+    }
+  }
+
+  // ✅ Step 2: Always clear local state (regardless of API success)
   dispatch(clearAuth());
   dispatch(clearCartState());
-
-  // ✅ Then try to notify server (non-blocking) - don't await, let it run in background
-  apiLogout().catch((error) => {
-    // Ignore errors on logout - user is already logged out locally
-    console.debug("Logout API call failed, but user is logged out locally");
-  });
 };
 
 export const loginUser =

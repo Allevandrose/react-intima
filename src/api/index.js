@@ -61,11 +61,14 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    // ✅ FIX: Don't redirect on logout endpoint
+    const isLogoutEndpoint = error.config?.url?.includes("/auth/logout");
+
     // ✅ Log the error URL
     console.error(`❌ API Error:`, error.response?.status, error.config?.url);
 
-    // Only redirect on 401 if it's not an auth endpoint and we have a token
-    if (error.response?.status === 401) {
+    // ✅ Skip redirect for logout endpoint
+    if (error.response?.status === 401 && !isLogoutEndpoint) {
       const isAuthEndpoint = error.config?.url?.includes("/auth/");
 
       // Don't redirect on auth endpoints (login, register, etc.)

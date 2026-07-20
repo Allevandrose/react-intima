@@ -32,14 +32,13 @@ const Header = () => {
     setMenuOpen(false);
 
     try {
-      // ✅ FIX: Don't use .unwrap() - just await the dispatch
       await dispatch(logoutUser());
-      toast.success("Logged out successfully");
+      // ✅ Don't show toast - user is already logged out
       navigate("/", { replace: true });
     } catch (error) {
-      // Even if API fails, we should still clear local state
       console.error("Logout error:", error);
-      toast.error("Logout failed, but you've been signed out locally");
+      // ✅ Silent fail - user is already logged out locally
+      // toast.error("Logout failed, but you've been signed out locally");
       navigate("/", { replace: true });
     } finally {
       setIsLoggingOut(false);
