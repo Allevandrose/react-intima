@@ -300,7 +300,7 @@ const Dashboard = () => {
             </div>
           </div>
 
-          {/* Low Stock Product Alerts Panel */}
+          {/* Low Stock Product Alerts Panel - FIXED */}
           <div className="bg-white border border-[#E6DFD1] overflow-hidden">
             <div className="flex justify-between items-center p-5 border-b border-[#E6DFD1]">
               <h2 className="font-display text-lg text-[#14120F] flex items-center gap-2">
@@ -319,47 +319,78 @@ const Dashboard = () => {
             </div>
             <div className="p-5">
               {stats?.lowStockProducts && stats.lowStockProducts.length > 0 ? (
-                <div className="space-y-3">
+                <div className="space-y-4">
                   {stats.lowStockProducts.map((product) => (
                     <div
                       key={product._id}
-                      className="flex items-center gap-4 border-b border-[#EFEAE0] pb-3 last:border-0 last:pb-0"
+                      className="border-b border-[#EFEAE0] pb-4 last:border-0 last:pb-0"
                     >
-                      <div className="w-12 h-12 bg-[#EFEAE0] overflow-hidden flex-shrink-0 border border-[#E6DFD1]">
-                        {product.images && product.images.length > 0 ? (
-                          <img
-                            src={getImageUrl(product.images[0])}
-                            alt={product.name}
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                              e.target.onerror = null;
-                              e.target.src =
-                                "https://via.placeholder.com/48x48?text=No+Image";
-                            }}
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center">
-                            <Package className="w-4 h-4 text-[#B7AC98]" />
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-[#EFEAE0] overflow-hidden flex-shrink-0 border border-[#E6DFD1]">
+                          {product.images && product.images.length > 0 ? (
+                            <img
+                              src={getImageUrl(product.images[0])}
+                              alt={product.name}
+                              className="w-full h-full object-cover"
+                              onError={(e) => {
+                                e.target.onerror = null;
+                                e.target.src =
+                                  "https://via.placeholder.com/48x48?text=No+Image";
+                              }}
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center">
+                              <Package className="w-4 h-4 text-[#B7AC98]" />
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm text-[#14120F] truncate font-medium">
+                              {product.name}
+                            </p>
+                            <span className="text-xs font-medium text-[#8C4B3A] bg-[#8C4B3A]/10 px-2 py-1 whitespace-nowrap ml-2">
+                              {product.hasLowStockVariant
+                                ? "Variant Low"
+                                : "Low Stock"}
+                            </span>
                           </div>
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm text-[#14120F] truncate">
-                          {product.name}
-                        </p>
-                        <p className="text-xs text-[#8C4B3A]">
-                          {product.stock !== undefined && product.stock < 10
-                            ? `Stock: ${product.stock}`
-                            : ""}
-                          {product.variants &&
-                            product.variants.some((v) => v.stock < 10) && (
-                              <span> Some variants low</span>
+
+                          {/* Show total stock */}
+                          <p className="text-xs text-[#8C7B6B] mt-0.5">
+                            Total Stock:{" "}
+                            <span className="font-medium text-[#14120F]">
+                              {product.totalStock}
+                            </span>
+                          </p>
+
+                          {/* Show variant details if low stock variants exist */}
+                          {product.hasLowStockVariant &&
+                            product.lowStockVariants && (
+                              <div className="mt-1.5">
+                                <p className="text-[10px] uppercase tracking-[0.1em] text-[#8C7B6B] mb-1">
+                                  Low Stock Variants:
+                                </p>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {product.lowStockVariants.map(
+                                    (variant, idx) => (
+                                      <span
+                                        key={idx}
+                                        className="text-[10px] bg-[#FBF1E4] text-[#8A6A2E] px-2 py-0.5 border border-[#E6DFD1]"
+                                      >
+                                        {variant.color && `${variant.color} `}
+                                        {variant.size && `${variant.size} `}
+                                        <span className="font-medium">
+                                          ({variant.stock || 0})
+                                        </span>
+                                      </span>
+                                    ),
+                                  )}
+                                </div>
+                              </div>
                             )}
-                        </p>
+                        </div>
                       </div>
-                      <span className="text-xs font-medium text-[#8C4B3A] bg-[#8C4B3A]/10 px-2 py-1 whitespace-nowrap">
-                        Low Stock
-                      </span>
                     </div>
                   ))}
                 </div>
