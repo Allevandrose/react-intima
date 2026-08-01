@@ -21,6 +21,7 @@ const PaymentSuccess = () => {
   const [pollingCount, setPollingCount] = useState(0);
   const [errorMessage, setErrorMessage] = useState(null);
   const [orderId, setOrderId] = useState(null);
+  const [showSweetAlert, setShowSweetAlert] = useState(false);
 
   // ✅ Get order from URL params
   const orderNumber =
@@ -47,7 +48,6 @@ const PaymentSuccess = () => {
     // If status is already success from URL
     if (statusParam === "success" || isIntaSendRedirect) {
       setStatus("success");
-      // Try to find order by order number
       if (orderNumber) {
         verifyOrder(orderNumber);
       }
@@ -94,22 +94,43 @@ const PaymentSuccess = () => {
       }
 
       console.log("📦 Found order:", order);
-      console.log("📦 Order ID:", order.id); // ✅ FIXED: Use 'id'
+      console.log("📦 Order ID:", order.id);
       setOrderData(order);
-      setOrderId(order.id); // ✅ FIXED: Store 'id'
+      setOrderId(order.id);
 
       // ✅ Check order status
       if (order.status === "paid") {
         setStatus("success");
         toast.success("Payment confirmed! 🎉");
+        // ✅ Show SweetAlert on success
+        if (!showSweetAlert) {
+          setShowSweetAlert(true);
+          await Swal.fire({
+            icon: "success",
+            title: "Payment Successful! 🎉",
+            text: `Your order #${order.orderNumber} has been confirmed. You will receive a confirmation email shortly.`,
+            background: "#F7F3EA",
+            iconColor: "#B08D4F",
+            confirmButtonColor: "#14120F",
+            confirmButtonText: "View Orders",
+            timer: 5000,
+            timerProgressBar: true,
+          }).then((result) => {
+            if (
+              result.isConfirmed ||
+              result.dismiss === Swal.DismissReason.timer
+            ) {
+              navigate("/orders");
+            }
+          });
+        }
         return;
       }
 
       // ✅ If order is still pending/processing, check with backend
       if (order.status === "pending" || order.status === "processing") {
-        // Check payment status
         try {
-          const statusResponse = await api.get(`/payments/status/${order.id}`); // ✅ FIXED: Use 'id'
+          const statusResponse = await api.get(`/payments/status/${order.id}`);
           console.log("📊 Payment status:", statusResponse.data);
 
           if (statusResponse.data.success) {
@@ -118,10 +139,31 @@ const PaymentSuccess = () => {
             if (orderStatus === "paid") {
               setStatus("success");
               toast.success("Payment confirmed! 🎉");
-              // Refresh order data
-              const updatedOrder = await api.get(`/orders/${order.id}`); // ✅ FIXED: Use 'id'
+              const updatedOrder = await api.get(`/orders/${order.id}`);
               setOrderData(updatedOrder.data.data);
-              setOrderId(updatedOrder.data.data.id); // ✅ FIXED: Use 'id'
+              setOrderId(updatedOrder.data.data.id);
+              // ✅ Show SweetAlert on success
+              if (!showSweetAlert) {
+                setShowSweetAlert(true);
+                await Swal.fire({
+                  icon: "success",
+                  title: "Payment Successful! 🎉",
+                  text: `Your order #${order.orderNumber} has been confirmed. You will receive a confirmation email shortly.`,
+                  background: "#F7F3EA",
+                  iconColor: "#B08D4F",
+                  confirmButtonColor: "#14120F",
+                  confirmButtonText: "View Orders",
+                  timer: 5000,
+                  timerProgressBar: true,
+                }).then((result) => {
+                  if (
+                    result.isConfirmed ||
+                    result.dismiss === Swal.DismissReason.timer
+                  ) {
+                    navigate("/orders");
+                  }
+                });
+              }
               return;
             }
 
@@ -144,7 +186,6 @@ const PaymentSuccess = () => {
                 setTimeout(() => verifyOrder(orderNumber), 3000);
                 return;
               } else {
-                // After 5 attempts, show pending
                 setStatus("pending");
                 return;
               }
@@ -152,12 +193,10 @@ const PaymentSuccess = () => {
           }
         } catch (error) {
           console.error("❌ Status check error:", error);
-          // If we can't check status, show pending
           setStatus("pending");
         }
       }
 
-      // Default: show pending
       setStatus("pending");
     } catch (error) {
       console.error("❌ Verification error:", error);
@@ -179,7 +218,7 @@ const PaymentSuccess = () => {
     try {
       const response = await api.get(
         `/payments/status/${orderId || orderData.id}`,
-      ); // ✅ FIXED: Use 'id'
+      );
       if (response.data.success) {
         const { orderStatus } = response.data.data;
         if (orderStatus === "paid") {
@@ -187,9 +226,31 @@ const PaymentSuccess = () => {
           toast.success("Payment confirmed! 🎉");
           const updatedOrder = await api.get(
             `/orders/${orderId || orderData.id}`,
-          ); // ✅ FIXED: Use 'id'
+          );
           setOrderData(updatedOrder.data.data);
-          setOrderId(updatedOrder.data.data.id); // ✅ FIXED: Use 'id'
+          setOrderId(updatedOrder.data.data.id);
+          // ✅ Show SweetAlert on success
+          if (!showSweetAlert) {
+            setShowSweetAlert(true);
+            await Swal.fire({
+              icon: "success",
+              title: "Payment Successful! 🎉",
+              text: `Your order #${orderData.orderNumber} has been confirmed.`,
+              background: "#F7F3EA",
+              iconColor: "#B08D4F",
+              confirmButtonColor: "#14120F",
+              confirmButtonText: "View Orders",
+              timer: 5000,
+              timerProgressBar: true,
+            }).then((result) => {
+              if (
+                result.isConfirmed ||
+                result.dismiss === Swal.DismissReason.timer
+              ) {
+                navigate("/orders");
+              }
+            });
+          }
         } else {
           toast.info("Payment still processing. Please wait.");
           setStatus("pending");
