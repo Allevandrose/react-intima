@@ -8,6 +8,7 @@ import {
   Loader,
   ShoppingBag,
   ArrowRight,
+  RefreshCw,
 } from "lucide-react";
 import api from "../../api/index";
 import toast from "react-hot-toast";
@@ -22,8 +23,9 @@ const PaymentSuccess = () => {
   const [errorMessage, setErrorMessage] = useState(null);
   const [orderId, setOrderId] = useState(null);
   const [showSweetAlert, setShowSweetAlert] = useState(false);
+  const [isPolling, setIsPolling] = useState(true);
+  const MAX_POLLING_ATTEMPTS = 15; // Increased for better reliability
 
-  // ✅ Get order from URL params
   const orderNumber =
     searchParams.get("order") ||
     searchParams.get("orderId") ||
@@ -32,10 +34,10 @@ const PaymentSuccess = () => {
   const invoiceId =
     searchParams.get("invoice_id") || searchParams.get("invoiceId");
 
-  // ✅ Check if this is a direct redirect from IntaSend
   const isIntaSendRedirect =
     searchParams.get("payment") === "success" || statusParam === "success";
 
+  // ✅ Get order ID from URL or localStorage
   useEffect(() => {
     console.log("🔍 PaymentSuccess mounted with:", {
       orderNumber,
@@ -44,6 +46,16 @@ const PaymentSuccess = () => {
       isIntaSendRedirect,
       allParams: Object.fromEntries(searchParams.entries()),
     });
+
+    // ✅ If there's no orderNumber, check sessionStorage for recent order
+    if (!orderNumber) {
+      const savedOrder = sessionStorage.getItem("lastOrderNumber");
+      if (savedOrder) {
+        console.log("📦 Found order in sessionStorage:", savedOrder);
+        verifyOrder(savedOrder);
+        return;
+      }
+    }
 
     // If status is already success from URL
     if (statusParam === "success" || isIntaSendRedirect) {
@@ -61,12 +73,12 @@ const PaymentSuccess = () => {
       return;
     }
 
-    // If no order number, show error
+    // If no order number, show error with option to go to orders
     if (!orderNumber) {
       console.error("❌ No order ID in URL");
       setStatus("error");
       setErrorMessage(
-        "No order ID found in the URL. Please check your orders page.",
+        "No order ID found. Please check your orders page for confirmation.",
       );
       return;
     }
@@ -79,6 +91,9 @@ const PaymentSuccess = () => {
     try {
       console.log(`🔍 Verifying order: ${orderNumber}`);
 
+      // ✅ Store order number in session for recovery
+      sessionStorage.setItem("lastOrderNumber", orderNumber);
+
       // ✅ First, get all orders and find by orderNumber
       const ordersResponse = await api.get("/orders/my");
       const orders = ordersResponse.data.data || [];
@@ -86,40 +101,55 @@ const PaymentSuccess = () => {
 
       if (!order) {
         console.error("❌ Order not found:", orderNumber);
+
+        // ✅ If we've been polling and still not found, show pending state
+        if (pollingCount > 3) {
+          setStatus("pending");
+          setErrorMessage(
+            "Your order is being processed. Please wait or check your orders page.",
+          );
+          setIsPolling(false);
+          return;
+        }
+
         setStatus("error");
         setErrorMessage(
-          `Order ${orderNumber} not found. Please contact support.`,
+          `Order ${orderNumber} not found. Please check your orders page or contact support.`,
         );
         return;
       }
 
       console.log("📦 Found order:", order);
       console.log("📦 Order ID:", order.id);
+      console.log("📦 Order Status:", order.status);
       setOrderData(order);
       setOrderId(order.id);
 
-      // ✅ Check order status
+      // ✅ Check order status - SUCCESS
       if (order.status === "paid") {
         setStatus("success");
         toast.success("Payment confirmed! 🎉");
-        // ✅ Show SweetAlert on success
+        setIsPolling(false);
+
+        // ✅ Show SweetAlert on success (only once)
         if (!showSweetAlert) {
           setShowSweetAlert(true);
           await Swal.fire({
             icon: "success",
             title: "Payment Successful! 🎉",
-            text: `Your order #${order.orderNumber} has been confirmed. You will receive a confirmation email shortly.`,
+            text: `Your order #${order.orderNumber} has been confirmed. A confirmation email has been sent.`,
             background: "#F7F3EA",
             iconColor: "#B08D4F",
             confirmButtonColor: "#14120F",
             confirmButtonText: "View Orders",
-            timer: 5000,
+            timer: 6000,
             timerProgressBar: true,
           }).then((result) => {
             if (
               result.isConfirmed ||
               result.dismiss === Swal.DismissReason.timer
             ) {
+              // ✅ Navigate to orders instead of home
               navigate("/orders");
             }
           });
@@ -136,24 +166,27 @@ const PaymentSuccess = () => {
           if (statusResponse.data.success) {
             const { orderStatus, paymentStatus } = statusResponse.data.data;
 
+            // ✅ Payment completed
             if (orderStatus === "paid") {
               setStatus("success");
               toast.success("Payment confirmed! 🎉");
+              setIsPolling(false);
+
               const updatedOrder = await api.get(`/orders/${order.id}`);
               setOrderData(updatedOrder.data.data);
               setOrderId(updatedOrder.data.data.id);
-              // ✅ Show SweetAlert on success
+
               if (!showSweetAlert) {
                 setShowSweetAlert(true);
                 await Swal.fire({
                   icon: "success",
                   title: "Payment Successful! 🎉",
-                  text: `Your order #${order.orderNumber} has been confirmed. You will receive a confirmation email shortly.`,
+                  text: `Your order #${order.orderNumber} has been confirmed. A confirmation email has been sent.`,
                   background: "#F7F3EA",
                   iconColor: "#B08D4F",
                   confirmButtonColor: "#14120F",
                   confirmButtonText: "View Orders",
-                  timer: 5000,
+                  timer: 6000,
                   timerProgressBar: true,
                 }).then((result) => {
                   if (
@@ -167,6 +200,7 @@ const PaymentSuccess = () => {
               return;
             }
 
+            // ✅ Payment failed
             if (
               paymentStatus === "failed" ||
               orderStatus === "payment_failed"
@@ -175,94 +209,88 @@ const PaymentSuccess = () => {
               setErrorMessage(
                 "Payment failed. Please try again or contact support.",
               );
+              setIsPolling(false);
               return;
             }
 
-            // Still pending - poll a few times
+            // ✅ Still pending - continue polling
             if (paymentStatus === "pending" || paymentStatus === "processing") {
-              if (pollingCount < 5) {
+              if (pollingCount < MAX_POLLING_ATTEMPTS) {
                 setPollingCount((prev) => prev + 1);
-                console.log(`⏳ Polling... Attempt ${pollingCount + 1}/5`);
+                console.log(
+                  `⏳ Polling... Attempt ${pollingCount + 1}/${MAX_POLLING_ATTEMPTS}`,
+                );
                 setTimeout(() => verifyOrder(orderNumber), 3000);
                 return;
               } else {
+                // ✅ Max attempts reached - show pending state with refresh button
+                setIsPolling(false);
                 setStatus("pending");
+                setErrorMessage(
+                  "Payment is taking longer than expected. You can check status manually.",
+                );
                 return;
               }
             }
           }
-        } catch (error) {
-          console.error("❌ Status check error:", error);
+        } catch (statusError) {
+          console.error("❌ Status check error:", statusError);
+          // ✅ Don't fail immediately - continue polling
+          if (pollingCount < MAX_POLLING_ATTEMPTS) {
+            setPollingCount((prev) => prev + 1);
+            setTimeout(() => verifyOrder(orderNumber), 4000);
+            return;
+          }
           setStatus("pending");
+          setIsPolling(false);
         }
       }
 
+      // ✅ Default fallback
       setStatus("pending");
+      setIsPolling(false);
     } catch (error) {
       console.error("❌ Verification error:", error);
+      // ✅ Don't show error immediately - try polling
+      if (pollingCount < 5) {
+        setPollingCount((prev) => prev + 1);
+        setTimeout(() => verifyOrder(orderNumber), 3000);
+        return;
+      }
       setStatus("error");
       setErrorMessage(
-        "Failed to verify payment. Please check your orders page.",
+        "Unable to verify payment. Please check your orders page.",
       );
+      setIsPolling(false);
     }
   };
 
   // ✅ Manual refresh status
   const handleRefreshStatus = async () => {
-    if (!orderData) {
+    if (!orderData && !orderNumber) {
       toast.error("No order data available");
       return;
     }
 
     setStatus("loading");
-    try {
-      const response = await api.get(
-        `/payments/status/${orderId || orderData.id}`,
-      );
-      if (response.data.success) {
-        const { orderStatus } = response.data.data;
-        if (orderStatus === "paid") {
-          setStatus("success");
-          toast.success("Payment confirmed! 🎉");
-          const updatedOrder = await api.get(
-            `/orders/${orderId || orderData.id}`,
-          );
-          setOrderData(updatedOrder.data.data);
-          setOrderId(updatedOrder.data.data.id);
-          // ✅ Show SweetAlert on success
-          if (!showSweetAlert) {
-            setShowSweetAlert(true);
-            await Swal.fire({
-              icon: "success",
-              title: "Payment Successful! 🎉",
-              text: `Your order #${orderData.orderNumber} has been confirmed.`,
-              background: "#F7F3EA",
-              iconColor: "#B08D4F",
-              confirmButtonColor: "#14120F",
-              confirmButtonText: "View Orders",
-              timer: 5000,
-              timerProgressBar: true,
-            }).then((result) => {
-              if (
-                result.isConfirmed ||
-                result.dismiss === Swal.DismissReason.timer
-              ) {
-                navigate("/orders");
-              }
-            });
-          }
-        } else {
-          toast.info("Payment still processing. Please wait.");
-          setStatus("pending");
-        }
-      }
-    } catch (error) {
-      toast.error("Failed to refresh status");
+    setIsPolling(true);
+    setPollingCount(0);
+
+    const orderNum = orderData?.orderNumber || orderNumber;
+    if (orderNum) {
+      verifyOrder(orderNum);
+    } else {
+      toast.error("No order number found");
       setStatus("pending");
     }
   };
 
-  // Loading state
+  // ✅ Navigate to orders page
+  const goToOrders = () => {
+    navigate("/orders");
+  };
+
+  // ✅ Loading state
   if (status === "loading") {
     return (
       <div className="min-h-screen bg-[#F7F3EA] flex items-center justify-center p-5 font-['Work_Sans']">
@@ -280,15 +308,21 @@ const PaymentSuccess = () => {
           </p>
           {pollingCount > 0 && (
             <p className="text-xs text-[#B08D4F] mt-2">
-              Checking status ({pollingCount}/5)
+              Checking status ({pollingCount}/{MAX_POLLING_ATTEMPTS})
             </p>
           )}
+          <button
+            onClick={() => navigate("/orders")}
+            className="mt-6 text-xs text-[#B08D4F] hover:text-[#14120F] transition-colors underline"
+          >
+            View your orders instead
+          </button>
         </div>
       </div>
     );
   }
 
-  // Success state
+  // ✅ Success state
   if (status === "success") {
     return (
       <div className="min-h-screen bg-[#F7F3EA] flex items-center justify-center p-5 font-['Work_Sans']">
@@ -304,8 +338,8 @@ const PaymentSuccess = () => {
             Payment Successful! 🎉
           </h1>
           <p className="text-[#5C5348] text-sm leading-relaxed">
-            Your order has been confirmed. You will receive a confirmation email
-            shortly.
+            Your order has been confirmed. A confirmation email has been sent to
+            your email address.
           </p>
           {orderData && (
             <div className="bg-[#FBF9F4] border border-[#E6DFD1] p-4 mt-6 mb-6 text-left text-sm">
@@ -331,7 +365,7 @@ const PaymentSuccess = () => {
           )}
           <div className="flex flex-col sm:flex-row gap-3">
             <button
-              onClick={() => navigate("/orders")}
+              onClick={goToOrders}
               className="flex-1 bg-[#14120F] text-[#F7F3EA] py-3 px-4 text-xs uppercase tracking-[0.2em] hover:bg-[#1F3D33] transition-colors flex items-center justify-center gap-2"
             >
               <ShoppingBag className="w-4 h-4" />
@@ -350,7 +384,7 @@ const PaymentSuccess = () => {
     );
   }
 
-  // Pending state
+  // ✅ Pending state with manual refresh
   if (status === "pending") {
     return (
       <div className="min-h-screen bg-[#F7F3EA] flex items-center justify-center p-5 font-['Work_Sans']">
@@ -366,7 +400,8 @@ const PaymentSuccess = () => {
             Payment Processing
           </h1>
           <p className="text-[#5C5348] text-sm leading-relaxed">
-            Your payment is being processed. This may take a few moments.
+            {errorMessage ||
+              "Your payment is being processed. This may take a few moments."}
           </p>
           {orderData && (
             <p className="text-xs text-[#B08D4F] mt-2">
@@ -379,12 +414,13 @@ const PaymentSuccess = () => {
           <div className="flex flex-col sm:flex-row gap-3 mt-6">
             <button
               onClick={handleRefreshStatus}
-              className="flex-1 bg-[#14120F] text-[#F7F3EA] py-3 px-4 text-xs uppercase tracking-[0.2em] hover:bg-[#1F3D33] transition-colors"
+              className="flex-1 bg-[#14120F] text-[#F7F3EA] py-3 px-4 text-xs uppercase tracking-[0.2em] hover:bg-[#1F3D33] transition-colors flex items-center justify-center gap-2"
             >
+              <RefreshCw className="w-4 h-4" />
               Check Status
             </button>
             <button
-              onClick={() => navigate("/orders")}
+              onClick={goToOrders}
               className="flex-1 border border-[#14120F] text-[#14120F] py-3 px-4 text-xs uppercase tracking-[0.2em] hover:bg-[#14120F] hover:text-[#F7F3EA] transition-colors"
             >
               View Orders
@@ -395,7 +431,7 @@ const PaymentSuccess = () => {
     );
   }
 
-  // Error state
+  // ✅ Error state
   return (
     <div className="min-h-screen bg-[#F7F3EA] flex items-center justify-center p-5 font-['Work_Sans']">
       <style>{`
@@ -407,11 +443,11 @@ const PaymentSuccess = () => {
           <XCircle className="w-10 h-10 text-red-500" />
         </div>
         <h1 className="font-display text-2xl text-[#14120F] mb-2">
-          Payment Issue
+          Payment Status
         </h1>
         <p className="text-[#5C5348] text-sm leading-relaxed">
           {errorMessage ||
-            "There was an issue confirming your payment. Please check your orders page or contact support."}
+            "There was an issue confirming your payment. Please check your orders page."}
         </p>
         {orderData && (
           <p className="text-xs text-[#8C7B6B] mt-2">
@@ -420,16 +456,16 @@ const PaymentSuccess = () => {
         )}
         <div className="flex flex-col sm:flex-row gap-3 mt-6">
           <button
-            onClick={() => navigate("/orders")}
+            onClick={goToOrders}
             className="flex-1 bg-[#14120F] text-[#F7F3EA] py-3 px-4 text-xs uppercase tracking-[0.2em] hover:bg-[#1F3D33] transition-colors"
           >
-            Check Orders
+            View Orders
           </button>
           <button
-            onClick={() => navigate("/contact")}
+            onClick={() => navigate("/shop")}
             className="flex-1 border border-[#14120F] text-[#14120F] py-3 px-4 text-xs uppercase tracking-[0.2em] hover:bg-[#14120F] hover:text-[#F7F3EA] transition-colors"
           >
-            Contact Support
+            Continue Shopping
           </button>
         </div>
       </div>
