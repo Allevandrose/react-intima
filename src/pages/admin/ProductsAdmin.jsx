@@ -38,6 +38,7 @@ const ProductsAdmin = () => {
     isFeatured: false,
     hasVariants: false,
     variants: [],
+    details: [],
   };
 
   const [formData, setFormData] = useState(initialFormState);
@@ -47,6 +48,7 @@ const ProductsAdmin = () => {
     stock: "",
     price: "",
   });
+  const [newDetail, setNewDetail] = useState({ title: "", value: "" });
   const [imageFiles, setImageFiles] = useState([]);
   const [imagePreviews, setImagePreviews] = useState([]);
   const [imagesToRemove, setImagesToRemove] = useState([]);
@@ -77,6 +79,11 @@ const ProductsAdmin = () => {
     setNewVariant({ ...newVariant, [name]: value });
   };
 
+  const handleDetailInputChange = (e) => {
+    const { name, value } = e.target;
+    setNewDetail({ ...newDetail, [name]: value });
+  };
+
   const handleImageChange = (e) => {
     const files = Array.from(e.target.files);
     if (files.length + imageFiles.length > 5) {
@@ -93,11 +100,9 @@ const ProductsAdmin = () => {
     setImagePreviews(previews);
   };
 
-  // ✅ Updated with SweetAlert
   const removeImage = async (index) => {
     const fileToRemove = imageFiles[index];
 
-    // If it's an existing image, confirm removal
     if (!(fileToRemove instanceof File)) {
       const result = await Swal.fire({
         title: "Remove Image?",
@@ -130,10 +135,8 @@ const ProductsAdmin = () => {
     }
   };
 
-  // ✅ Updated with SweetAlert
   const addVariant = () => {
     if (newVariant.color || newVariant.size) {
-      // Check if variant already exists
       const exists = formData.variants.some(
         (v) => v.color === newVariant.color && v.size === newVariant.size,
       );
@@ -161,7 +164,6 @@ const ProductsAdmin = () => {
     }
   };
 
-  // ✅ Updated with SweetAlert
   const removeVariant = async (index) => {
     const variant = formData.variants[index];
     const result = await Swal.fire({
@@ -183,11 +185,46 @@ const ProductsAdmin = () => {
     }
   };
 
-  // ✅ Updated with SweetAlert validation
+  const addDetail = () => {
+    if (newDetail.title.trim() && newDetail.value.trim()) {
+      setFormData({
+        ...formData,
+        details: [
+          ...formData.details,
+          { title: newDetail.title.trim(), value: newDetail.value.trim() },
+        ],
+      });
+      setNewDetail({ title: "", value: "" });
+      toast.success("Detail added");
+    } else {
+      toast.error("Please enter both title and value");
+    }
+  };
+
+  const removeDetail = async (index) => {
+    const detail = formData.details[index];
+    const result = await Swal.fire({
+      title: "Remove Detail?",
+      text: `Remove "${detail.title}" from the product details?`,
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonColor: "#8C4B3A",
+      cancelButtonColor: "#14120F",
+      confirmButtonText: "Yes, Remove",
+      cancelButtonText: "Cancel",
+      background: "#F7F3EA",
+    });
+
+    if (result.isConfirmed) {
+      const updatedDetails = formData.details.filter((_, i) => i !== index);
+      setFormData({ ...formData, details: updatedDetails });
+      toast.success("Detail removed");
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Validate required fields
     if (
       !formData.name ||
       !formData.description ||
@@ -198,7 +235,6 @@ const ProductsAdmin = () => {
       return;
     }
 
-    // Validate variants
     if (formData.hasVariants && formData.variants.length === 0) {
       toast.error("Please add at least one variant");
       return;
@@ -215,6 +251,10 @@ const ProductsAdmin = () => {
       formDataToSend.append("variants", JSON.stringify(formData.variants));
     } else {
       formDataToSend.append("stock", formData.stock || 0);
+    }
+
+    if (formData.details && formData.details.length > 0) {
+      formDataToSend.append("details", JSON.stringify(formData.details));
     }
 
     imageFiles.forEach((file) => {
@@ -266,7 +306,6 @@ const ProductsAdmin = () => {
     }
   };
 
-  // ✅ Updated with SweetAlert
   const handleDelete = async (id, productName) => {
     const result = await Swal.fire({
       title: "Delete Product?",
@@ -316,6 +355,7 @@ const ProductsAdmin = () => {
       isFeatured: product.isFeatured || false,
       hasVariants: hasVariants,
       variants: hasVariants ? product.variants : [],
+      details: product.details || [],
     });
 
     setImageFiles(existingImages);
@@ -331,7 +371,6 @@ const ProductsAdmin = () => {
     return product.stock || 0;
   };
 
-  // ✅ IMPROVED: Show variant details including prices
   const getVariantDisplay = (variants) => {
     if (!variants || variants.length === 0) return "No variants";
 
@@ -347,7 +386,6 @@ const ProductsAdmin = () => {
     return display.join(", ") || "Variants";
   };
 
-  // ✅ NEW: Get variant price range
   const getVariantPriceRange = (variants) => {
     if (!variants || variants.length === 0) return null;
     const prices = variants.map((v) => v.price).filter((p) => p > 0);
@@ -817,6 +855,75 @@ const ProductsAdmin = () => {
                     )}
                   </div>
                 )}
+
+                {/* Product Details Section */}
+                <div className="border border-[#E6DFD1] p-4 bg-[#FBF9F4]">
+                  <h4 className="text-[11px] uppercase tracking-[0.15em] text-[#8C7B6B] mb-3">
+                    Product Details (Optional)
+                  </h4>
+                  <p className="text-xs text-[#8C7B6B] mb-3 tracking-wide">
+                    Add specifications like Country of Origin, Material, etc.
+                  </p>
+                  <div className="grid grid-cols-2 gap-2 mb-3">
+                    <input
+                      type="text"
+                      name="title"
+                      value={newDetail.title}
+                      onChange={handleDetailInputChange}
+                      placeholder="Title (e.g., Country of Origin)"
+                      className="px-3 py-2 bg-white border border-[#E6DFD1] text-sm focus:outline-none focus:border-[#B08D4F] transition-colors"
+                    />
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        name="value"
+                        value={newDetail.value}
+                        onChange={handleDetailInputChange}
+                        placeholder="Value (e.g., Kenya)"
+                        className="flex-1 px-3 py-2 bg-white border border-[#E6DFD1] text-sm focus:outline-none focus:border-[#B08D4F] transition-colors"
+                      />
+                      <button
+                        type="button"
+                        onClick={addDetail}
+                        className="bg-[#14120F] text-[#F7F3EA] px-3 py-2 hover:bg-[#1F3D33] transition-colors flex items-center justify-center"
+                      >
+                        <PlusCircle className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {formData.details.length > 0 && (
+                    <div className="space-y-2 max-h-40 overflow-y-auto">
+                      {formData.details.map((detail, index) => (
+                        <div
+                          key={index}
+                          className="flex items-center justify-between bg-white border border-[#EFEAE0] p-2.5"
+                        >
+                          <div className="flex items-center gap-4 flex-wrap">
+                            <span className="text-xs font-medium text-[#14120F]">
+                              {detail.title}:
+                            </span>
+                            <span className="text-xs text-[#5C5348]">
+                              {detail.value}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeDetail(index)}
+                            className="text-[#8C4B3A] hover:text-[#73392D]"
+                          >
+                            <MinusCircle className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {formData.details.length > 0 && (
+                    <p className="text-xs text-[#8C7B6B] mt-2 tracking-wide">
+                      {formData.details.length} detail(s) configured
+                    </p>
+                  )}
+                </div>
 
                 <div className="flex gap-3 pt-2">
                   <button

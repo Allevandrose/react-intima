@@ -61,7 +61,6 @@ const ProductDetail = () => {
     }
   };
 
-  // ✅ FIXED: Get current price from variant or product
   const getCurrentPrice = () => {
     if (selectedVariant?.price && selectedVariant.price > 0) {
       return selectedVariant.price;
@@ -76,7 +75,6 @@ const ProductDetail = () => {
     return product?.stock || 0;
   };
 
-  // ✅ Updated with SweetAlert
   const handleAddToCart = async () => {
     const availableStock = getCurrentStock();
 
@@ -164,6 +162,7 @@ const ProductDetail = () => {
   const hasVariants = product.variants && product.variants.length > 0;
   const currentPrice = getCurrentPrice();
   const currentStock = getCurrentStock();
+  const hasDetails = product.details && product.details.length > 0;
 
   return (
     <div className="min-h-screen bg-[#F7F3EA] font-['Work_Sans']">
@@ -245,7 +244,6 @@ const ProductDetail = () => {
                 <p className="text-2xl text-[#B08D4F] font-medium tracking-wide">
                   {formatCurrency(currentPrice)}
                 </p>
-                {/* ✅ Show original price if variant has different price */}
                 {selectedVariant?.price > 0 &&
                   selectedVariant.price !== product.price && (
                     <span className="text-sm text-[#B7AC98] line-through">
@@ -270,6 +268,31 @@ const ProductDetail = () => {
             <p className="text-[#5C5348] leading-relaxed text-sm border-t border-[#E6DFD1] pt-6">
               {product.description}
             </p>
+
+            {/* Product Details Table */}
+            {hasDetails && (
+              <div className="border-t border-[#E6DFD1] pt-6">
+                <h3 className="text-[11px] uppercase tracking-[0.2em] text-[#8C7B6B] mb-4">
+                  Product Details
+                </h3>
+                <div className="bg-[#FBF9F4] border border-[#E6DFD1] overflow-hidden">
+                  <table className="w-full">
+                    <tbody className="divide-y divide-[#E6DFD1]">
+                      {product.details.map((detail, index) => (
+                        <tr key={index}>
+                          <td className="px-4 py-3 text-sm font-medium text-[#14120F] w-1/3 bg-[#FBF9F4]">
+                            {detail.title}
+                          </td>
+                          <td className="px-4 py-3 text-sm text-[#5C5348]">
+                            {detail.value}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
 
             {/* Variants section */}
             {hasVariants && (
