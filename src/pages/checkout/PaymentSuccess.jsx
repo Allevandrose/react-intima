@@ -24,7 +24,10 @@ const PaymentSuccess = () => {
   const [orderId, setOrderId] = useState(null);
   const [showSweetAlert, setShowSweetAlert] = useState(false);
   const [isPolling, setIsPolling] = useState(true);
-  const MAX_POLLING_ATTEMPTS = 15; // Increased for better reliability
+
+  // ✅ FIXED: Increased from 15 to 30 to wait for webhook (up to 90 seconds)
+  const MAX_POLLING_ATTEMPTS = 30;
+  const POLLING_INTERVAL = 3000; // 3 seconds between checks
 
   const orderNumber =
     searchParams.get("order") ||
@@ -220,7 +223,7 @@ const PaymentSuccess = () => {
                 console.log(
                   `⏳ Polling... Attempt ${pollingCount + 1}/${MAX_POLLING_ATTEMPTS}`,
                 );
-                setTimeout(() => verifyOrder(orderNumber), 3000);
+                setTimeout(() => verifyOrder(orderNumber), POLLING_INTERVAL);
                 return;
               } else {
                 // ✅ Max attempts reached - show pending state with refresh button
@@ -238,7 +241,7 @@ const PaymentSuccess = () => {
           // ✅ Don't fail immediately - continue polling
           if (pollingCount < MAX_POLLING_ATTEMPTS) {
             setPollingCount((prev) => prev + 1);
-            setTimeout(() => verifyOrder(orderNumber), 4000);
+            setTimeout(() => verifyOrder(orderNumber), POLLING_INTERVAL);
             return;
           }
           setStatus("pending");
@@ -252,9 +255,9 @@ const PaymentSuccess = () => {
     } catch (error) {
       console.error("❌ Verification error:", error);
       // ✅ Don't show error immediately - try polling
-      if (pollingCount < 5) {
+      if (pollingCount < MAX_POLLING_ATTEMPTS) {
         setPollingCount((prev) => prev + 1);
-        setTimeout(() => verifyOrder(orderNumber), 3000);
+        setTimeout(() => verifyOrder(orderNumber), POLLING_INTERVAL);
         return;
       }
       setStatus("error");
