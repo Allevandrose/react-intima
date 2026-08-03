@@ -1,51 +1,56 @@
-import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import { getProducts, getProduct } from '../../api/products';
+import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
+import { getProducts, getProduct } from "../../api/products";
 
 const initialState = {
   products: [],
   product: null,
+  currentCategory: null, // ✅ Added for category page
   loading: false,
   error: null,
   total: 0,
   page: 1,
   pages: 1,
   filters: {
-    category: '',
-    minPrice: '',
-    maxPrice: '',
-    search: '',
-    sort: '',
+    category: "",
+    minPrice: "",
+    maxPrice: "",
+    search: "",
+    sort: "",
   },
 };
 
 // Async thunks
 export const fetchProducts = createAsyncThunk(
-  'products/fetchProducts',
+  "products/fetchProducts",
   async (params = {}, { getState, rejectWithValue }) => {
     try {
       const { filters } = getState().products;
       const response = await getProducts({ ...filters, ...params });
       return response.data;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to fetch products');
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to fetch products",
+      );
     }
-  }
+  },
 );
 
 export const fetchProduct = createAsyncThunk(
-  'products/fetchProduct',
+  "products/fetchProduct",
   async (slug, { rejectWithValue }) => {
     try {
       const response = await getProduct(slug);
       return response.data.data;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to fetch product');
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to fetch product",
+      );
     }
-  }
+  },
 );
 
 const productsSlice = createSlice({
-  name: 'products',
+  name: "products",
   initialState,
   reducers: {
     setFilters: (state, action) => {
@@ -54,11 +59,11 @@ const productsSlice = createSlice({
     },
     clearFilters: (state) => {
       state.filters = {
-        category: '',
-        minPrice: '',
-        maxPrice: '',
-        search: '',
-        sort: '',
+        category: "",
+        minPrice: "",
+        maxPrice: "",
+        search: "",
+        sort: "",
       };
       state.page = 1;
     },
@@ -70,6 +75,9 @@ const productsSlice = createSlice({
     },
     clearError: (state) => {
       state.error = null;
+    },
+    clearCategory: (state) => {
+      state.currentCategory = null;
     },
   },
   extraReducers: (builder) => {
@@ -85,10 +93,14 @@ const productsSlice = createSlice({
         state.total = action.payload.total;
         state.page = action.payload.page;
         state.pages = action.payload.pages;
+        // ✅ Store current category from params if available
+        if (action.meta.arg?.category) {
+          // Category will be set by CategoryPage component
+        }
       })
       .addCase(fetchProducts.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload || 'Failed to fetch products';
+        state.error = action.payload || "Failed to fetch products";
         state.products = [];
       })
       // Fetch Product
@@ -102,11 +114,18 @@ const productsSlice = createSlice({
       })
       .addCase(fetchProduct.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload || 'Failed to fetch product';
+        state.error = action.payload || "Failed to fetch product";
         state.product = null;
       });
   },
 });
 
-export const { setFilters, clearFilters, setPage, clearProduct, clearError } = productsSlice.actions;
+export const {
+  setFilters,
+  clearFilters,
+  setPage,
+  clearProduct,
+  clearError,
+  clearCategory, // ✅ Export clearCategory
+} = productsSlice.actions;
 export default productsSlice.reducer;

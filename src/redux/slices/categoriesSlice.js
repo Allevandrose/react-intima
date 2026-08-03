@@ -1,5 +1,5 @@
-import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import { getCategories } from '../../api/categories';
+import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
+import { getCategories } from "../../api/categories";
 
 const initialState = {
   categories: [],
@@ -8,19 +8,21 @@ const initialState = {
 };
 
 export const fetchCategories = createAsyncThunk(
-  'categories/fetchCategories',
+  "categories/fetchCategories",
   async (_, { rejectWithValue }) => {
     try {
       const response = await getCategories();
       return response.data.data;
     } catch (error) {
-      return rejectWithValue(error.response?.data?.message || 'Failed to fetch categories');
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to fetch categories",
+      );
     }
-  }
+  },
 );
 
 const categoriesSlice = createSlice({
-  name: 'categories',
+  name: "categories",
   initialState,
   reducers: {
     clearError: (state) => {
@@ -39,7 +41,7 @@ const categoriesSlice = createSlice({
       })
       .addCase(fetchCategories.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload || 'Failed to fetch categories';
+        state.error = action.payload || "Failed to fetch categories";
       });
   },
 });

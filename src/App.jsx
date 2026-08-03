@@ -18,6 +18,7 @@ const Register = lazy(() => import("./pages/auth/Register"));
 const ForgotPassword = lazy(() => import("./pages/auth/ForgotPassword"));
 const ResetPassword = lazy(() => import("./pages/auth/ResetPassword"));
 const ShopPage = lazy(() => import("./pages/shop/ShopPage"));
+const CategoryPage = lazy(() => import("./pages/shop/CategoryPage")); // ✅ ADDED
 const ProductDetail = lazy(() => import("./pages/shop/ProductDetail"));
 const CartPage = lazy(() => import("./pages/cart/CartPage"));
 const CheckoutPage = lazy(() => import("./pages/checkout/CheckoutPage"));
@@ -113,7 +114,7 @@ function App() {
               <main className="flex-grow">
                 <Suspense fallback={<PageLoader />}>
                   <Routes>
-                    {/* Public Routes - Auth pages will redirect if logged in */}
+                    {/* Public Routes */}
                     <Route path="/" element={<HomePage />} />
                     <Route path="/login" element={<Login />} />
                     <Route path="/register" element={<Register />} />
@@ -126,6 +127,10 @@ function App() {
                       element={<ResetPassword />}
                     />
                     <Route path="/shop" element={<ShopPage />} />
+
+                    {/* ✅ CATEGORY ROUTE - ADDED */}
+                    <Route path="/category/:slug" element={<CategoryPage />} />
+
                     <Route path="/product/:slug" element={<ProductDetail />} />
                     <Route path="/cart" element={<CartPage />} />
 
@@ -138,8 +143,6 @@ function App() {
                         </PrivateRoute>
                       }
                     />
-
-                    {/* ✅ FIX: Added /payment-success route */}
                     <Route
                       path="/payment-success"
                       element={
@@ -148,8 +151,6 @@ function App() {
                         </PrivateRoute>
                       }
                     />
-
-                    {/* ✅ Keep /checkout/success as fallback */}
                     <Route
                       path="/checkout/success"
                       element={
@@ -158,7 +159,6 @@ function App() {
                         </PrivateRoute>
                       }
                     />
-
                     <Route
                       path="/orders"
                       element={
@@ -176,7 +176,7 @@ function App() {
                       }
                     />
 
-                    {/* Admin Routes */}
+                    {/* Admin Routes - NO SEO needed */}
                     <Route
                       path="/admin"
                       element={

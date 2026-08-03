@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import Swal from "sweetalert2";
+import SEO from "../../components/common/SEO";
 
 // ✅ Import the configured api instance
 import api from "../../api/index";
@@ -457,356 +458,380 @@ const CheckoutPage = () => {
 
   if (isProcessing && checkoutStep !== "idle") {
     return (
-      <div className="min-h-screen bg-[#F7F3EA] font-['Work_Sans']">
-        <style>{`
-          @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;0,9..144,600;1,9..144,400&family=Work+Sans:wght@300;400;500;600&display=swap');
-          .font-display { font-family: 'Fraunces', serif; }
-        `}</style>
-        <div className="min-h-[60vh] flex flex-col items-center justify-center px-5">
-          <div className="relative">
-            <div className="w-16 h-16 border-4 border-[#E6DFD1] border-t-[#B08D4F] rounded-full animate-spin"></div>
-            {checkoutStep === "creating" && (
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-[#B08D4F] text-xs font-medium">1/3</span>
-              </div>
+      <>
+        <SEO
+          title="Processing Checkout | Intimacare Kenya"
+          description="Processing your order at Intimacare Kenya. Secure payments via M-Pesa with discreet delivery across Kenya."
+          url="/checkout"
+        />
+        <div className="min-h-screen bg-[#F7F3EA] font-['Work_Sans']">
+          <style>{`
+            @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;0,9..144,600;1,9..144,400&family=Work+Sans:wght@300;400;500;600&display=swap');
+            .font-display { font-family: 'Fraunces', serif; }
+          `}</style>
+          <div className="min-h-[60vh] flex flex-col items-center justify-center px-5">
+            <div className="relative">
+              <div className="w-16 h-16 border-4 border-[#E6DFD1] border-t-[#B08D4F] rounded-full animate-spin"></div>
+              {checkoutStep === "creating" && (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-[#B08D4F] text-xs font-medium">
+                    1/3
+                  </span>
+                </div>
+              )}
+              {checkoutStep === "paying" && (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-[#B08D4F] text-xs font-medium">
+                    2/3
+                  </span>
+                </div>
+              )}
+              {checkoutStep === "redirecting" && (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-[#B08D4F] text-xs font-medium">
+                    3/3
+                  </span>
+                </div>
+              )}
+            </div>
+            <h2 className="font-display text-2xl text-[#14120F] mt-6 mb-2">
+              {getStepLabel()}
+            </h2>
+            <p className="text-[#8C7B6B] text-sm tracking-wide">
+              {getStepDescription()}
+            </p>
+            {createdOrder && (
+              <p className="text-xs text-[#B08D4F] mt-4 font-medium">
+                Order #{createdOrder.orderNumber}
+              </p>
             )}
-            {checkoutStep === "paying" && (
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-[#B08D4F] text-xs font-medium">2/3</span>
-              </div>
-            )}
+            <div className="mt-6 w-full max-w-xs bg-[#EFEAE0] h-1 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-[#B08D4F] transition-all duration-500 rounded-full"
+                style={{
+                  width:
+                    checkoutStep === "creating"
+                      ? "33%"
+                      : checkoutStep === "paying"
+                        ? "66%"
+                        : "100%",
+                }}
+              />
+            </div>
             {checkoutStep === "redirecting" && (
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className="text-[#B08D4F] text-xs font-medium">3/3</span>
-              </div>
+              <p className="text-xs text-[#B08D4F] mt-4 animate-pulse">
+                ⏳ Monitoring payment status...
+              </p>
             )}
           </div>
-          <h2 className="font-display text-2xl text-[#14120F] mt-6 mb-2">
-            {getStepLabel()}
-          </h2>
-          <p className="text-[#8C7B6B] text-sm tracking-wide">
-            {getStepDescription()}
-          </p>
-          {createdOrder && (
-            <p className="text-xs text-[#B08D4F] mt-4 font-medium">
-              Order #{createdOrder.orderNumber}
-            </p>
-          )}
-          <div className="mt-6 w-full max-w-xs bg-[#EFEAE0] h-1 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-[#B08D4F] transition-all duration-500 rounded-full"
-              style={{
-                width:
-                  checkoutStep === "creating"
-                    ? "33%"
-                    : checkoutStep === "paying"
-                      ? "66%"
-                      : "100%",
-              }}
-            />
-          </div>
-          {checkoutStep === "redirecting" && (
-            <p className="text-xs text-[#B08D4F] mt-4 animate-pulse">
-              ⏳ Monitoring payment status...
-            </p>
-          )}
         </div>
-      </div>
+      </>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#F7F3EA] font-['Work_Sans']">
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;0,9..144,600;1,9..144,400&family=Work+Sans:wght@300;400;500;600&display=swap');
-        .font-display { font-family: 'Fraunces', serif; }
-        .lux-input:focus, .lux-select:focus, .lux-textarea:focus {
-          outline: none;
-          border-color: #B08D4F;
-          box-shadow: 0 0 0 1px #B08D4F;
-        }
-      `}</style>
+    <>
+      <SEO
+        title="Checkout | Intimacare Kenya"
+        description="Complete your purchase at Intimacare Kenya. Secure payments via M-Pesa. Discreet delivery in Nairobi, Mombasa, Kisumu."
+        keywords="checkout Kenya, Intimacare checkout, M-Pesa payment Kenya, adult toys checkout"
+        url="/checkout"
+      />
 
-      <div className="max-w-7xl mx-auto px-5 sm:px-8 py-10 sm:py-14">
-        <button
-          onClick={() => navigate("/cart")}
-          className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-[#5C5348] hover:text-[#14120F] transition-colors mb-8"
-          disabled={isProcessing}
-        >
-          <ArrowLeft className="w-4 h-4" strokeWidth={1.5} />
-          Back to Cart
-        </button>
+      <div className="min-h-screen bg-[#F7F3EA] font-['Work_Sans']">
+        <style>{`
+          @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;0,9..144,600;1,9..144,400&family=Work+Sans:wght@300;400;500;600&display=swap');
+          .font-display { font-family: 'Fraunces', serif; }
+          .lux-input:focus, .lux-select:focus, .lux-textarea:focus {
+            outline: none;
+            border-color: #B08D4F;
+            box-shadow: 0 0 0 1px #B08D4F;
+          }
+        `}</style>
 
-        <div className="mb-10 border-b border-[#E6DFD1] pb-8">
-          <h1 className="font-display text-4xl text-[#14120F]">Checkout</h1>
-          <p className="text-[#8C7B6B] text-sm mt-2 tracking-wide">
-            {items.length} item{items.length > 1 ? "s" : ""} in your bag
-          </p>
-        </div>
+        <div className="max-w-7xl mx-auto px-5 sm:px-8 py-10 sm:py-14">
+          <button
+            onClick={() => navigate("/cart")}
+            className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-[#5C5348] hover:text-[#14120F] transition-colors mb-8"
+            disabled={isProcessing}
+          >
+            <ArrowLeft className="w-4 h-4" strokeWidth={1.5} />
+            Back to Cart
+          </button>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-10 lg:gap-14">
-          <div className="lg:col-span-2">
-            <div className="bg-white border border-[#E6DFD1] p-6 sm:p-7">
-              <h2 className="font-display text-xl text-[#14120F] mb-6">
-                Shipping Information
-              </h2>
-
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  handleCheckout();
-                }}
-                className="space-y-5"
-              >
-                <div>
-                  <label className="block text-[11px] uppercase tracking-[0.15em] text-[#8C7B6B] mb-2">
-                    Street Address <span className="text-[#8C4B3A]">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    name="street"
-                    value={formData.street}
-                    onChange={handleChange}
-                    disabled={isProcessing}
-                    className={`lux-input w-full px-4 py-3 bg-white border text-sm text-[#14120F] placeholder-[#B7AC98] transition-colors ${
-                      errors.street ? "border-[#8C4B3A]" : "border-[#D8CFBC]"
-                    } ${isProcessing ? "opacity-50 cursor-not-allowed" : ""}`}
-                    placeholder="Enter your street address"
-                  />
-                  {errors.street && (
-                    <p className="text-[#8C4B3A] text-xs mt-1.5 tracking-wide">
-                      {errors.street}
-                    </p>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  <div>
-                    <label className="block text-[11px] uppercase tracking-[0.15em] text-[#8C7B6B] mb-2">
-                      City <span className="text-[#8C4B3A]">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      name="city"
-                      value={formData.city}
-                      onChange={handleChange}
-                      disabled={isProcessing}
-                      className={`lux-input w-full px-4 py-3 bg-white border text-sm text-[#14120F] placeholder-[#B7AC98] transition-colors ${
-                        errors.city ? "border-[#8C4B3A]" : "border-[#D8CFBC]"
-                      } ${isProcessing ? "opacity-50 cursor-not-allowed" : ""}`}
-                      placeholder="Enter your city"
-                    />
-                    {errors.city && (
-                      <p className="text-[#8C4B3A] text-xs mt-1.5 tracking-wide">
-                        {errors.city}
-                      </p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] uppercase tracking-[0.15em] text-[#8C7B6B] mb-2">
-                      County <span className="text-[#8C4B3A]">*</span>
-                    </label>
-                    <select
-                      name="county"
-                      value={formData.county}
-                      onChange={handleChange}
-                      disabled={isProcessing}
-                      className={`lux-select w-full px-4 py-3 bg-white border text-sm text-[#14120F] transition-colors ${
-                        errors.county ? "border-[#8C4B3A]" : "border-[#D8CFBC]"
-                      } ${isProcessing ? "opacity-50 cursor-not-allowed" : ""}`}
-                    >
-                      <option value="">Select County</option>
-                      <option value="Nairobi">Nairobi</option>
-                      <option value="Mombasa">Mombasa</option>
-                      <option value="Kisumu">Kisumu</option>
-                      <option value="Nakuru">Nakuru</option>
-                      <option value="Eldoret">Eldoret</option>
-                      <option value="Thika">Thika</option>
-                      <option value="Malindi">Malindi</option>
-                      <option value="Kitale">Kitale</option>
-                      <option value="Kakamega">Kakamega</option>
-                      <option value="Nyeri">Nyeri</option>
-                      <option value="Meru">Meru</option>
-                    </select>
-                    {errors.county && (
-                      <p className="text-[#8C4B3A] text-xs mt-1.5 tracking-wide">
-                        {errors.county}
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  <div>
-                    <label className="block text-[11px] uppercase tracking-[0.15em] text-[#8C7B6B] mb-2">
-                      Phone Number <span className="text-[#8C4B3A]">*</span>
-                    </label>
-                    <input
-                      type="tel"
-                      name="phone"
-                      value={formData.phone}
-                      onChange={handleChange}
-                      disabled={isProcessing}
-                      className={`lux-input w-full px-4 py-3 bg-white border text-sm text-[#14120F] placeholder-[#B7AC98] transition-colors ${
-                        errors.phone ? "border-[#8C4B3A]" : "border-[#D8CFBC]"
-                      } ${isProcessing ? "opacity-50 cursor-not-allowed" : ""}`}
-                      placeholder="0712345678"
-                    />
-                    {errors.phone && (
-                      <p className="text-[#8C4B3A] text-xs mt-1.5 tracking-wide">
-                        {errors.phone}
-                      </p>
-                    )}
-                    <p className="text-[11px] text-[#8C7B6B] mt-1 tracking-wide">
-                      For delivery confirmation and M-Pesa payments
-                    </p>
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] uppercase tracking-[0.15em] text-[#8C7B6B] mb-2">
-                      Postal Code
-                    </label>
-                    <input
-                      type="text"
-                      name="postalCode"
-                      value={formData.postalCode}
-                      onChange={handleChange}
-                      disabled={isProcessing}
-                      className={`lux-input w-full px-4 py-3 bg-white border border-[#D8CFBC] text-sm text-[#14120F] placeholder-[#B7AC98] transition-colors ${
-                        isProcessing ? "opacity-50 cursor-not-allowed" : ""
-                      }`}
-                      placeholder="00100"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] uppercase tracking-[0.15em] text-[#8C7B6B] mb-2">
-                    Order Notes (Optional)
-                  </label>
-                  <textarea
-                    name="notes"
-                    value={formData.notes}
-                    onChange={handleChange}
-                    disabled={isProcessing}
-                    rows="3"
-                    className={`lux-textarea w-full px-4 py-3 bg-white border border-[#D8CFBC] text-sm text-[#14120F] placeholder-[#B7AC98] transition-colors ${
-                      isProcessing ? "opacity-50 cursor-not-allowed" : ""
-                    }`}
-                    placeholder="Any special instructions for delivery..."
-                  />
-                </div>
-
-                <div className="flex flex-wrap gap-x-6 gap-y-2.5 text-xs text-[#5C5348] tracking-wide pt-2">
-                  <div className="flex items-center gap-2.5">
-                    <Shield
-                      className="w-4 h-4 text-[#B08D4F]"
-                      strokeWidth={1.5}
-                    />
-                    <span>Secure checkout</span>
-                  </div>
-                  <div className="flex items-center gap-2.5">
-                    <Truck
-                      className="w-4 h-4 text-[#B08D4F]"
-                      strokeWidth={1.5}
-                    />
-                    <span>Discreet packaging</span>
-                  </div>
-                  <div className="flex items-center gap-2.5">
-                    <CreditCard
-                      className="w-4 h-4 text-[#B08D4F]"
-                      strokeWidth={1.5}
-                    />
-                    <span>M-Pesa / Card</span>
-                  </div>
-                </div>
-              </form>
-            </div>
+          <div className="mb-10 border-b border-[#E6DFD1] pb-8">
+            <h1 className="font-display text-4xl text-[#14120F]">Checkout</h1>
+            <p className="text-[#8C7B6B] text-sm mt-2 tracking-wide">
+              {items.length} item{items.length > 1 ? "s" : ""} in your bag
+            </p>
           </div>
 
-          <div className="lg:col-span-1">
-            <div className="bg-white border border-[#E6DFD1] p-7 sticky top-28">
-              <h2 className="font-display text-xl text-[#14120F] mb-6">
-                Order Summary
-              </h2>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-10 lg:gap-14">
+            <div className="lg:col-span-2">
+              <div className="bg-white border border-[#E6DFD1] p-6 sm:p-7">
+                <h2 className="font-display text-xl text-[#14120F] mb-6">
+                  Shipping Information
+                </h2>
 
-              <div className="max-h-48 overflow-y-auto space-y-2.5 mb-5 pr-1">
-                {items.map((item, index) => (
-                  <div
-                    key={`${item.productId}-${index}`}
-                    className="flex justify-between gap-3 text-sm"
-                  >
-                    <span className="text-[#5C5348]">
-                      {item.name}{" "}
-                      {item.selectedVariant?.color &&
-                        `(${item.selectedVariant.color})`}{" "}
-                      × {item.quantity}
-                    </span>
-                    <span className="font-medium text-[#14120F] whitespace-nowrap">
-                      {formatCurrency(item.price * item.quantity)}
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    handleCheckout();
+                  }}
+                  className="space-y-5"
+                >
+                  <div>
+                    <label className="block text-[11px] uppercase tracking-[0.15em] text-[#8C7B6B] mb-2">
+                      Street Address <span className="text-[#8C4B3A]">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      name="street"
+                      value={formData.street}
+                      onChange={handleChange}
+                      disabled={isProcessing}
+                      className={`lux-input w-full px-4 py-3 bg-white border text-sm text-[#14120F] placeholder-[#B7AC98] transition-colors ${
+                        errors.street ? "border-[#8C4B3A]" : "border-[#D8CFBC]"
+                      } ${isProcessing ? "opacity-50 cursor-not-allowed" : ""}`}
+                      placeholder="Enter your street address"
+                    />
+                    {errors.street && (
+                      <p className="text-[#8C4B3A] text-xs mt-1.5 tracking-wide">
+                        {errors.street}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div>
+                      <label className="block text-[11px] uppercase tracking-[0.15em] text-[#8C7B6B] mb-2">
+                        City <span className="text-[#8C4B3A]">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        name="city"
+                        value={formData.city}
+                        onChange={handleChange}
+                        disabled={isProcessing}
+                        className={`lux-input w-full px-4 py-3 bg-white border text-sm text-[#14120F] placeholder-[#B7AC98] transition-colors ${
+                          errors.city ? "border-[#8C4B3A]" : "border-[#D8CFBC]"
+                        } ${isProcessing ? "opacity-50 cursor-not-allowed" : ""}`}
+                        placeholder="Enter your city"
+                      />
+                      {errors.city && (
+                        <p className="text-[#8C4B3A] text-xs mt-1.5 tracking-wide">
+                          {errors.city}
+                        </p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] uppercase tracking-[0.15em] text-[#8C7B6B] mb-2">
+                        County <span className="text-[#8C4B3A]">*</span>
+                      </label>
+                      <select
+                        name="county"
+                        value={formData.county}
+                        onChange={handleChange}
+                        disabled={isProcessing}
+                        className={`lux-select w-full px-4 py-3 bg-white border text-sm text-[#14120F] transition-colors ${
+                          errors.county
+                            ? "border-[#8C4B3A]"
+                            : "border-[#D8CFBC]"
+                        } ${isProcessing ? "opacity-50 cursor-not-allowed" : ""}`}
+                      >
+                        <option value="">Select County</option>
+                        <option value="Nairobi">Nairobi</option>
+                        <option value="Mombasa">Mombasa</option>
+                        <option value="Kisumu">Kisumu</option>
+                        <option value="Nakuru">Nakuru</option>
+                        <option value="Eldoret">Eldoret</option>
+                        <option value="Thika">Thika</option>
+                        <option value="Malindi">Malindi</option>
+                        <option value="Kitale">Kitale</option>
+                        <option value="Kakamega">Kakamega</option>
+                        <option value="Nyeri">Nyeri</option>
+                        <option value="Meru">Meru</option>
+                      </select>
+                      {errors.county && (
+                        <p className="text-[#8C4B3A] text-xs mt-1.5 tracking-wide">
+                          {errors.county}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div>
+                      <label className="block text-[11px] uppercase tracking-[0.15em] text-[#8C7B6B] mb-2">
+                        Phone Number <span className="text-[#8C4B3A]">*</span>
+                      </label>
+                      <input
+                        type="tel"
+                        name="phone"
+                        value={formData.phone}
+                        onChange={handleChange}
+                        disabled={isProcessing}
+                        className={`lux-input w-full px-4 py-3 bg-white border text-sm text-[#14120F] placeholder-[#B7AC98] transition-colors ${
+                          errors.phone ? "border-[#8C4B3A]" : "border-[#D8CFBC]"
+                        } ${isProcessing ? "opacity-50 cursor-not-allowed" : ""}`}
+                        placeholder="0712345678"
+                      />
+                      {errors.phone && (
+                        <p className="text-[#8C4B3A] text-xs mt-1.5 tracking-wide">
+                          {errors.phone}
+                        </p>
+                      )}
+                      <p className="text-[11px] text-[#8C7B6B] mt-1 tracking-wide">
+                        For delivery confirmation and M-Pesa payments
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] uppercase tracking-[0.15em] text-[#8C7B6B] mb-2">
+                        Postal Code
+                      </label>
+                      <input
+                        type="text"
+                        name="postalCode"
+                        value={formData.postalCode}
+                        onChange={handleChange}
+                        disabled={isProcessing}
+                        className={`lux-input w-full px-4 py-3 bg-white border border-[#D8CFBC] text-sm text-[#14120F] placeholder-[#B7AC98] transition-colors ${
+                          isProcessing ? "opacity-50 cursor-not-allowed" : ""
+                        }`}
+                        placeholder="00100"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] uppercase tracking-[0.15em] text-[#8C7B6B] mb-2">
+                      Order Notes (Optional)
+                    </label>
+                    <textarea
+                      name="notes"
+                      value={formData.notes}
+                      onChange={handleChange}
+                      disabled={isProcessing}
+                      rows="3"
+                      className={`lux-textarea w-full px-4 py-3 bg-white border border-[#D8CFBC] text-sm text-[#14120F] placeholder-[#B7AC98] transition-colors ${
+                        isProcessing ? "opacity-50 cursor-not-allowed" : ""
+                      }`}
+                      placeholder="Any special instructions for delivery..."
+                    />
+                  </div>
+
+                  <div className="flex flex-wrap gap-x-6 gap-y-2.5 text-xs text-[#5C5348] tracking-wide pt-2">
+                    <div className="flex items-center gap-2.5">
+                      <Shield
+                        className="w-4 h-4 text-[#B08D4F]"
+                        strokeWidth={1.5}
+                      />
+                      <span>Secure checkout</span>
+                    </div>
+                    <div className="flex items-center gap-2.5">
+                      <Truck
+                        className="w-4 h-4 text-[#B08D4F]"
+                        strokeWidth={1.5}
+                      />
+                      <span>Discreet packaging</span>
+                    </div>
+                    <div className="flex items-center gap-2.5">
+                      <CreditCard
+                        className="w-4 h-4 text-[#B08D4F]"
+                        strokeWidth={1.5}
+                      />
+                      <span>M-Pesa / Card</span>
+                    </div>
+                  </div>
+                </form>
+              </div>
+            </div>
+
+            <div className="lg:col-span-1">
+              <div className="bg-white border border-[#E6DFD1] p-7 sticky top-28">
+                <h2 className="font-display text-xl text-[#14120F] mb-6">
+                  Order Summary
+                </h2>
+
+                <div className="max-h-48 overflow-y-auto space-y-2.5 mb-5 pr-1">
+                  {items.map((item, index) => (
+                    <div
+                      key={`${item.productId}-${index}`}
+                      className="flex justify-between gap-3 text-sm"
+                    >
+                      <span className="text-[#5C5348]">
+                        {item.name}{" "}
+                        {item.selectedVariant?.color &&
+                          `(${item.selectedVariant.color})`}{" "}
+                        × {item.quantity}
+                      </span>
+                      <span className="font-medium text-[#14120F] whitespace-nowrap">
+                        {formatCurrency(item.price * item.quantity)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="border-t border-[#E6DFD1] pt-4 space-y-3.5 text-sm">
+                  <div className="flex justify-between text-[#5C5348]">
+                    <span>Subtotal</span>
+                    <span>{formatCurrency(subtotal)}</span>
+                  </div>
+                  <div className="flex justify-between text-[#5C5348]">
+                    <span>Shipping</span>
+                    <span>
+                      {shipping === 0 ? "Free" : formatCurrency(shipping)}
                     </span>
                   </div>
-                ))}
-              </div>
-
-              <div className="border-t border-[#E6DFD1] pt-4 space-y-3.5 text-sm">
-                <div className="flex justify-between text-[#5C5348]">
-                  <span>Subtotal</span>
-                  <span>{formatCurrency(subtotal)}</span>
-                </div>
-                <div className="flex justify-between text-[#5C5348]">
-                  <span>Shipping</span>
-                  <span>
-                    {shipping === 0 ? "Free" : formatCurrency(shipping)}
-                  </span>
-                </div>
-                <div className="border-t border-[#E6DFD1] pt-4 mt-1">
-                  <div className="flex justify-between items-baseline">
-                    <span className="font-display text-lg text-[#14120F]">
-                      Total
-                    </span>
-                    <span className="text-[#B08D4F] text-lg font-medium">
-                      {formatCurrency(total)}
-                    </span>
+                  <div className="border-t border-[#E6DFD1] pt-4 mt-1">
+                    <div className="flex justify-between items-baseline">
+                      <span className="font-display text-lg text-[#14120F]">
+                        Total
+                      </span>
+                      <span className="text-[#B08D4F] text-lg font-medium">
+                        {formatCurrency(total)}
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {checkoutError && (
-                <div className="mt-5 p-3.5 bg-red-50 border border-red-200 flex items-start gap-3">
-                  <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
-                  <p className="text-xs text-red-600 leading-relaxed">
-                    {checkoutError}
-                  </p>
-                </div>
-              )}
-
-              <button
-                onClick={handleCheckout}
-                type="button"
-                disabled={isProcessing}
-                className="w-full mt-5 bg-[#14120F] text-[#F7F3EA] py-3.5 text-xs uppercase tracking-[0.2em] hover:bg-[#1F3D33] transition-colors duration-300 flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                {isProcessing ? (
-                  <>
-                    <Loader className="w-4 h-4 animate-spin" />
-                    Processing...
-                  </>
-                ) : (
-                  "Place Order"
+                {checkoutError && (
+                  <div className="mt-5 p-3.5 bg-red-50 border border-red-200 flex items-start gap-3">
+                    <AlertCircle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
+                    <p className="text-xs text-red-600 leading-relaxed">
+                      {checkoutError}
+                    </p>
+                  </div>
                 )}
-              </button>
 
-              <div className="mt-5 p-3.5 bg-[#FBF9F4] border border-[#E6DFD1] text-xs text-[#5C5348] text-center tracking-wide">
-                🔒 Your privacy is our priority. All information is encrypted
-                and secure.
+                <button
+                  onClick={handleCheckout}
+                  type="button"
+                  disabled={isProcessing}
+                  className="w-full mt-5 bg-[#14120F] text-[#F7F3EA] py-3.5 text-xs uppercase tracking-[0.2em] hover:bg-[#1F3D33] transition-colors duration-300 flex items-center justify-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  {isProcessing ? (
+                    <>
+                      <Loader className="w-4 h-4 animate-spin" />
+                      Processing...
+                    </>
+                  ) : (
+                    "Place Order"
+                  )}
+                </button>
+
+                <div className="mt-5 p-3.5 bg-[#FBF9F4] border border-[#E6DFD1] text-xs text-[#5C5348] text-center tracking-wide">
+                  🔒 Your privacy is our priority. All information is encrypted
+                  and secure.
+                </div>
               </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 };
 

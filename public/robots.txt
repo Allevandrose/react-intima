@@ -1,0 +1,17 @@
+# robots.txt for Intimacare Kenya
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /login
+Disallow: /register
+Disallow: /forgot-password
+Disallow: /reset-password/
+Disallow: /checkout
+Disallow: /payment-success
+Disallow: /cart
+
+# Sitemap location
+Sitemap: https://intimacare.co.ke/sitemap.xml
+
+# Crawl delay for bot respect
+Crawl-delay: 1
