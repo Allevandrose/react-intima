@@ -18,7 +18,7 @@ const Register = lazy(() => import("./pages/auth/Register"));
 const ForgotPassword = lazy(() => import("./pages/auth/ForgotPassword"));
 const ResetPassword = lazy(() => import("./pages/auth/ResetPassword"));
 const ShopPage = lazy(() => import("./pages/shop/ShopPage"));
-const CategoryPage = lazy(() => import("./pages/shop/CategoryPage")); // ✅ ADDED
+const CategoryPage = lazy(() => import("./pages/shop/CategoryPage"));
 const ProductDetail = lazy(() => import("./pages/shop/ProductDetail"));
 const CartPage = lazy(() => import("./pages/cart/CartPage"));
 const CheckoutPage = lazy(() => import("./pages/checkout/CheckoutPage"));
@@ -29,6 +29,7 @@ const AdminDashboard = lazy(() => import("./pages/admin/Dashboard"));
 const AdminProducts = lazy(() => import("./pages/admin/ProductsAdmin"));
 const AdminOrders = lazy(() => import("./pages/admin/OrdersAdmin"));
 const AdminCategories = lazy(() => import("./pages/admin/CategoriesAdmin"));
+const Sitemap = lazy(() => import("./pages/Sitemap")); // ✅ ADD THIS
 
 import Header from "./components/common/Header";
 import Footer from "./components/common/Footer";
@@ -74,7 +75,6 @@ const CartInitializer = ({ children }) => {
     let mounted = true;
 
     const initializeCart = async () => {
-      // Wait for auth to load before fetching cart
       if (isLoading) return;
 
       if (token && isAuthenticated) {
@@ -127,12 +127,12 @@ function App() {
                       element={<ResetPassword />}
                     />
                     <Route path="/shop" element={<ShopPage />} />
-
-                    {/* ✅ CATEGORY ROUTE - ADDED */}
                     <Route path="/category/:slug" element={<CategoryPage />} />
-
                     <Route path="/product/:slug" element={<ProductDetail />} />
                     <Route path="/cart" element={<CartPage />} />
+
+                    {/* ✅ Sitemap Route - Must be BEFORE 404 */}
+                    <Route path="/sitemap.xml" element={<Sitemap />} />
 
                     {/* Protected Routes */}
                     <Route
