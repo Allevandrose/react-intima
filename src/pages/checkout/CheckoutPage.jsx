@@ -1,8 +1,9 @@
 /**
  * CheckoutPage — Complete fixed version
  * Fixes: Order creation, payment initiation, error handling, loading states, cart clearing
+ * ✅ NEW: Added payment polling fallback for redirect issues
  */
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import {
@@ -12,7 +13,6 @@ import {
   ArrowLeft,
   Loader,
   AlertCircle,
-  CheckCircle,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import Swal from "sweetalert2";
@@ -27,7 +27,7 @@ import {
   selectShipping,
   selectTotal,
   clearCartState,
-  clearCartThunk, // ✅ ADDED: Import the thunk
+  clearCartThunk,
 } from "../../redux/slices/cartSlice";
 
 // ✅ Import orders actions
@@ -56,8 +56,13 @@ const CheckoutPage = () => {
   const [checkoutError, setCheckoutError] = useState(null);
   const [checkoutStep, setCheckoutStep] = useState("idle");
   const [createdOrder, setCreatedOrder] = useState(null);
-  // ✅ NEW: Flag to prevent "cart empty" redirect during checkout
+  // ✅ Flag to prevent "cart empty" redirect during checkout
   const [isRedirecting, setIsRedirecting] = useState(false);
+  // ✅ NEW: Track if payment polling is active
+  const [isPollingActive, setIsPollingActive] = useState(false);
+  const pollingIntervalRef = useRef(null);
+  const pollingAttemptsRef = useRef(0);
+  const maxPollingAttempts = 30; // 30 * 3sec = 90 seconds max
 
   const [formData, setFormData] = useState({
     street: "",
@@ -91,6 +96,16 @@ const CheckoutPage = () => {
       setFormData((prev) => ({ ...prev, phone: user.phone }));
     }
   }, [isAuthenticated, items.length, navigate, user, isRedirecting]);
+
+  // ✅ NEW: Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+    };
+  }, []);
 
   const formatCurrency = (amount) => {
     if (!amount || isNaN(amount) || amount === 0) {
@@ -126,6 +141,80 @@ const CheckoutPage = () => {
     }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
+  };
+
+  // ✅ NEW: Payment polling function - fallback if IntaSend redirect fails
+  const startPaymentPolling = (orderId, orderNumber) => {
+    if (isPollingActive) return;
+    setIsPollingActive(true);
+    pollingAttemptsRef.current = 0;
+
+    console.log(`🔍 Starting payment polling for order: ${orderNumber}`);
+
+    const checkPaymentStatus = async () => {
+      pollingAttemptsRef.current += 1;
+      console.log(
+        `🔍 Polling attempt ${pollingAttemptsRef.current}/${maxPollingAttempts} for order ${orderNumber}`,
+      );
+
+      if (pollingAttemptsRef.current > maxPollingAttempts) {
+        console.warn(
+          `⚠️ Max polling attempts reached for order ${orderNumber}`,
+        );
+        if (pollingIntervalRef.current) {
+          clearInterval(pollingIntervalRef.current);
+          pollingIntervalRef.current = null;
+        }
+        setIsPollingActive(false);
+        return;
+      }
+
+      try {
+        const response = await api.get(`/payments/status/${orderId}`);
+        const data = response.data.data;
+
+        console.log(`📊 Polling status for ${orderNumber}:`, data);
+
+        if (data.isPaid) {
+          console.log(`✅ Payment confirmed via polling for ${orderNumber}!`);
+
+          // Stop polling
+          if (pollingIntervalRef.current) {
+            clearInterval(pollingIntervalRef.current);
+            pollingIntervalRef.current = null;
+          }
+          setIsPollingActive(false);
+
+          // Show success and redirect
+          await Swal.fire({
+            icon: "success",
+            title: "Payment Successful! 🎉",
+            text: `Your order #${orderNumber} has been confirmed.`,
+            background: "#F7F3EA",
+            iconColor: "#B08D4F",
+            confirmButtonColor: "#14120F",
+            confirmButtonText: "View Orders",
+            timer: 5000,
+            timerProgressBar: true,
+          }).then((result) => {
+            if (
+              result.isConfirmed ||
+              result.dismiss === Swal.DismissReason.timer
+            ) {
+              navigate("/orders");
+            }
+          });
+        }
+      } catch (error) {
+        console.error(`❌ Polling error for ${orderNumber}:`, error);
+      }
+    };
+
+    // Start polling after 3 seconds (give time for redirect)
+    setTimeout(() => {
+      checkPaymentStatus(); // Check immediately
+      pollingIntervalRef.current = setInterval(checkPaymentStatus, 3000);
+    }, 3000);
   };
 
   // ✅ MAIN CHECKOUT FUNCTION - Complete flow
@@ -230,6 +319,12 @@ const CheckoutPage = () => {
         setIsRedirecting(true);
         console.log("🔗 Redirecting to payment URL:", paymentData.paymentUrl);
 
+        // ✅ ✅ ✅ START PAYMENT POLLING (FALLBACK FOR REDIRECT ISSUES)
+        console.log(
+          `🔍 Starting payment polling fallback for order ${order.orderNumber}`,
+        );
+        startPaymentPolling(order.id, order.orderNumber);
+
         // ✅ STEP A: Clear backend cart first
         try {
           await api.delete("/cart");
@@ -275,6 +370,13 @@ const CheckoutPage = () => {
       }
     } catch (error) {
       console.error("❌ Checkout error:", error);
+
+      // Stop polling on error
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+      setIsPollingActive(false);
 
       // ✅ Better error handling
       let errorMessage = "Checkout failed. Please try again.";
@@ -411,6 +513,12 @@ const CheckoutPage = () => {
               }}
             />
           </div>
+          {/* ✅ NEW: Show polling status if active */}
+          {isPollingActive && checkoutStep === "redirecting" && (
+            <p className="text-xs text-[#B08D4F] mt-4">
+              🔄 Payment monitoring active...
+            </p>
+          )}
         </div>
       </div>
     );

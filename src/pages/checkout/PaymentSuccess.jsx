@@ -21,8 +21,9 @@ const PaymentSuccess = () => {
   const [pollingCount, setPollingCount] = useState(0);
   const [errorMessage, setErrorMessage] = useState(null);
   const [orderId, setOrderId] = useState(null);
-  const sweetAlertShown = useRef(false); // ✅ Prevent duplicate alerts
-  const redirectDone = useRef(false); // ✅ Prevent duplicate redirects
+  const sweetAlertShown = useRef(false);
+  const redirectDone = useRef(false);
+  const pollingIntervalRef = useRef(null);
 
   const orderNumber =
     searchParams.get("order") ||
@@ -34,6 +35,16 @@ const PaymentSuccess = () => {
   const isIntaSendRedirect =
     searchParams.get("payment") === "success" || statusParam === "success";
 
+  // ✅ Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+    };
+  }, []);
+
   useEffect(() => {
     console.log("🔍 PaymentSuccess mounted with:", {
       orderNumber,
@@ -43,7 +54,7 @@ const PaymentSuccess = () => {
       allParams: Object.fromEntries(searchParams.entries()),
     });
 
-    // If status is already success from URL
+    // ✅ If status is already success from URL
     if (statusParam === "success" || isIntaSendRedirect) {
       setStatus("success");
       if (orderNumber) {
@@ -52,14 +63,14 @@ const PaymentSuccess = () => {
       return;
     }
 
-    // If status is failed from URL
+    // ✅ If status is failed from URL
     if (statusParam === "failed" || statusParam === "error") {
       setStatus("error");
       setErrorMessage("Payment was not completed successfully.");
       return;
     }
 
-    // If no order number, show error
+    // ✅ If no order number, show error
     if (!orderNumber) {
       console.error("❌ No order ID in URL");
       setStatus("error");
@@ -102,7 +113,7 @@ const PaymentSuccess = () => {
         return;
       }
 
-      // If order is still pending/processing, check with backend
+      // ✅ If order is still pending/processing, check with backend
       if (order.status === "pending" || order.status === "processing") {
         try {
           const statusResponse = await api.get(`/payments/status/${order.id}`);
@@ -132,11 +143,13 @@ const PaymentSuccess = () => {
               return;
             }
 
-            // Still pending - poll a few times
+            // ✅ Still pending - start polling
             if (paymentStatus === "pending" || paymentStatus === "processing") {
-              if (pollingCount < 5) {
+              if (pollingCount < 10) {
                 setPollingCount((prev) => prev + 1);
-                console.log(`⏳ Polling... Attempt ${pollingCount + 1}/5`);
+                console.log(`⏳ Polling... Attempt ${pollingCount + 1}/10`);
+
+                // ✅ Use setTimeout for polling
                 setTimeout(() => verifyOrder(orderNumber), 3000);
                 return;
               } else {
@@ -243,7 +256,7 @@ const PaymentSuccess = () => {
           </p>
           {pollingCount > 0 && (
             <p className="text-xs text-[#B08D4F] mt-2">
-              Checking status ({pollingCount}/5)
+              Checking status ({pollingCount}/10)
             </p>
           )}
         </div>
