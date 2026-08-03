@@ -1,3 +1,5 @@
+// src/App.jsx
+
 import React, { useEffect, Suspense, lazy } from "react";
 import {
   BrowserRouter as Router,
@@ -136,6 +138,18 @@ function App() {
                         </PrivateRoute>
                       }
                     />
+
+                    {/* ✅ FIX: Added /payment-success route */}
+                    <Route
+                      path="/payment-success"
+                      element={
+                        <PrivateRoute>
+                          <PaymentSuccess />
+                        </PrivateRoute>
+                      }
+                    />
+
+                    {/* ✅ Keep /checkout/success as fallback */}
                     <Route
                       path="/checkout/success"
                       element={
@@ -144,6 +158,7 @@ function App() {
                         </PrivateRoute>
                       }
                     />
+
                     <Route
                       path="/orders"
                       element={
