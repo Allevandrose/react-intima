@@ -1,7 +1,5 @@
 /**
- * CheckoutPage — Complete fixed version
- * Fixes: Order creation, payment initiation, error handling, loading states, cart clearing
- * ✅ NEW: Added payment polling fallback for redirect issues
+ * CheckoutPage — Complete fixed version with payment polling and SweetAlert
  */
 import React, { useState, useEffect, useRef } from "react";
 import { useSelector, useDispatch } from "react-redux";
@@ -30,12 +28,6 @@ import {
   clearCartThunk,
 } from "../../redux/slices/cartSlice";
 
-// ✅ Import orders actions
-import {
-  createOrderThunk,
-  initiatePaymentThunk,
-} from "../../redux/slices/ordersSlice";
-
 const CheckoutPage = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
@@ -47,22 +39,21 @@ const CheckoutPage = () => {
   const total = useSelector(selectTotal) || 0;
 
   const { isAuthenticated, user } = useSelector((state) => state.auth);
-  const { loading: ordersLoading, error: ordersError } = useSelector(
-    (state) => state.orders,
-  );
 
   // ✅ Local state management
   const [isProcessing, setIsProcessing] = useState(false);
   const [checkoutError, setCheckoutError] = useState(null);
   const [checkoutStep, setCheckoutStep] = useState("idle");
   const [createdOrder, setCreatedOrder] = useState(null);
-  // ✅ Flag to prevent "cart empty" redirect during checkout
   const [isRedirecting, setIsRedirecting] = useState(false);
-  // ✅ NEW: Track if payment polling is active
-  const [isPollingActive, setIsPollingActive] = useState(false);
+
+  // ✅ Payment polling refs
   const pollingIntervalRef = useRef(null);
   const pollingAttemptsRef = useRef(0);
-  const maxPollingAttempts = 30; // 30 * 3sec = 90 seconds max
+  const maxPollingAttempts = 40; // 40 * 3sec = 2 minutes max
+  const isPollingActiveRef = useRef(false);
+  const orderPollingRef = useRef(null);
+  const sweetAlertShownRef = useRef(false);
 
   const [formData, setFormData] = useState({
     street: "",
@@ -75,9 +66,8 @@ const CheckoutPage = () => {
 
   const [errors, setErrors] = useState({});
 
-  // ✅ FIXED: Prevent redirect during checkout
+  // ✅ Prevent redirect during checkout
   useEffect(() => {
-    // ✅ Skip all checks if we're in the redirecting phase
     if (isRedirecting) return;
 
     if (!isAuthenticated) {
@@ -97,7 +87,7 @@ const CheckoutPage = () => {
     }
   }, [isAuthenticated, items.length, navigate, user, isRedirecting]);
 
-  // ✅ NEW: Cleanup polling on unmount
+  // ✅ Cleanup polling on unmount
   useEffect(() => {
     return () => {
       if (pollingIntervalRef.current) {
@@ -143,16 +133,28 @@ const CheckoutPage = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  // ✅ NEW: Payment polling function - fallback if IntaSend redirect fails
+  // ✅ PAYMENT POLLING FUNCTION - Shows SweetAlert when payment is complete
   const startPaymentPolling = (orderId, orderNumber) => {
-    if (isPollingActive) return;
-    setIsPollingActive(true);
+    if (isPollingActiveRef.current) return;
+    isPollingActiveRef.current = true;
     pollingAttemptsRef.current = 0;
+    sweetAlertShownRef.current = false;
 
     console.log(`🔍 Starting payment polling for order: ${orderNumber}`);
 
     const checkPaymentStatus = async () => {
       pollingAttemptsRef.current += 1;
+
+      // ✅ If SweetAlert already shown, stop polling
+      if (sweetAlertShownRef.current) {
+        if (pollingIntervalRef.current) {
+          clearInterval(pollingIntervalRef.current);
+          pollingIntervalRef.current = null;
+        }
+        isPollingActiveRef.current = false;
+        return;
+      }
+
       console.log(
         `🔍 Polling attempt ${pollingAttemptsRef.current}/${maxPollingAttempts} for order ${orderNumber}`,
       );
@@ -165,7 +167,20 @@ const CheckoutPage = () => {
           clearInterval(pollingIntervalRef.current);
           pollingIntervalRef.current = null;
         }
-        setIsPollingActive(false);
+        isPollingActiveRef.current = false;
+
+        // Show timeout message
+        Swal.fire({
+          icon: "info",
+          title: "Payment Still Processing",
+          text: `Your payment for order #${orderNumber} is still being processed. Please check your orders page for status.`,
+          background: "#F7F3EA",
+          iconColor: "#B08D4F",
+          confirmButtonColor: "#14120F",
+          confirmButtonText: "View Orders",
+        }).then(() => {
+          navigate("/orders");
+        });
         return;
       }
 
@@ -176,25 +191,31 @@ const CheckoutPage = () => {
         console.log(`📊 Polling status for ${orderNumber}:`, data);
 
         if (data.isPaid) {
-          console.log(`✅ Payment confirmed via polling for ${orderNumber}!`);
+          console.log(
+            `✅✅✅ Payment confirmed via polling for ${orderNumber}!`,
+          );
 
           // Stop polling
           if (pollingIntervalRef.current) {
             clearInterval(pollingIntervalRef.current);
             pollingIntervalRef.current = null;
           }
-          setIsPollingActive(false);
+          isPollingActiveRef.current = false;
 
-          // Show success and redirect
+          // ✅ Prevent duplicate alerts
+          if (sweetAlertShownRef.current) return;
+          sweetAlertShownRef.current = true;
+
+          // ✅ SHOW SWEETALERT - Payment Successful!
           await Swal.fire({
             icon: "success",
             title: "Payment Successful! 🎉",
-            text: `Your order #${orderNumber} has been confirmed.`,
+            text: `Your order #${orderNumber} has been confirmed. You will receive a confirmation email shortly.`,
             background: "#F7F3EA",
             iconColor: "#B08D4F",
             confirmButtonColor: "#14120F",
             confirmButtonText: "View Orders",
-            timer: 5000,
+            timer: 8000,
             timerProgressBar: true,
           }).then((result) => {
             if (
@@ -210,14 +231,14 @@ const CheckoutPage = () => {
       }
     };
 
-    // Start polling after 3 seconds (give time for redirect)
+    // Start polling after 2 seconds
     setTimeout(() => {
-      checkPaymentStatus(); // Check immediately
+      checkPaymentStatus();
       pollingIntervalRef.current = setInterval(checkPaymentStatus, 3000);
-    }, 3000);
+    }, 2000);
   };
 
-  // ✅ MAIN CHECKOUT FUNCTION - Complete flow
+  // ✅ MAIN CHECKOUT FUNCTION
   const handleCheckout = async () => {
     if (isProcessing) return;
     setCheckoutError(null);
@@ -239,15 +260,11 @@ const CheckoutPage = () => {
       return;
     }
 
-    // Build order data
     const orderData = {
       items: validItems.map((item) => {
         const hasVariant =
           item.selectedVariant?.size || item.selectedVariant?.color;
-        const itemData = {
-          productId: item.productId,
-          quantity: item.quantity,
-        };
+        const itemData = { productId: item.productId, quantity: item.quantity };
         if (hasVariant) {
           itemData.selectedVariant = {
             size: item.selectedVariant.size || "",
@@ -279,8 +296,6 @@ const CheckoutPage = () => {
 
       const orderResponse = await api.post("/orders", orderData);
 
-      console.log("✅ Order response:", orderResponse.data);
-
       if (!orderResponse.data.success) {
         throw new Error(orderResponse.data.message || "Failed to create order");
       }
@@ -288,9 +303,7 @@ const CheckoutPage = () => {
       const order = orderResponse.data.data;
       setCreatedOrder(order);
       console.log("✅ Order created:", order.orderNumber);
-      console.log("✅ Order ID:", order.id);
 
-      // Show success toast
       toast.success(`Order ${order.orderNumber} created!`);
 
       // ─── Step 2: Initiate Payment ───
@@ -301,8 +314,6 @@ const CheckoutPage = () => {
         orderId: order.id,
         paymentMethod: "checkout",
       });
-
-      console.log("💳 Payment response:", paymentResponse.data);
 
       if (!paymentResponse.data.success) {
         throw new Error(
@@ -315,53 +326,39 @@ const CheckoutPage = () => {
       // ─── Step 3: Redirect to Payment ───
       if (paymentData.paymentUrl) {
         setCheckoutStep("redirecting");
-        // ✅ Set redirecting flag to prevent "cart empty" redirect
         setIsRedirecting(true);
         console.log("🔗 Redirecting to payment URL:", paymentData.paymentUrl);
 
-        // ✅ ✅ ✅ START PAYMENT POLLING (FALLBACK FOR REDIRECT ISSUES)
+        // ✅ ✅ ✅ START PAYMENT POLLING - This will show SweetAlert on success
         console.log(
-          `🔍 Starting payment polling fallback for order ${order.orderNumber}`,
+          `🔍 Starting payment polling for order ${order.orderNumber}`,
         );
         startPaymentPolling(order.id, order.orderNumber);
 
-        // ✅ STEP A: Clear backend cart first
+        // Clear cart
         try {
           await api.delete("/cart");
-          console.log("✅ Backend cart cleared successfully");
-        } catch (err) {
-          console.warn("⚠️ Could not clear backend cart:", err);
-          // Don't block the payment flow if cart clear fails
-        }
-
-        // ✅ STEP B: Clear frontend cart (Redux + localStorage)
-        try {
-          // Use clearCartThunk to clear both frontend and backend
           await dispatch(clearCartThunk()).unwrap();
-          console.log("✅ Frontend cart cleared via Redux");
+          localStorage.removeItem("cart");
         } catch (err) {
-          console.warn("⚠️ Could not clear frontend cart via Redux:", err);
-          // Fallback: manual clear
+          console.warn("⚠️ Could not clear cart:", err);
           dispatch(clearCartState());
           localStorage.removeItem("cart");
         }
 
-        // ✅ Double-check localStorage is cleared
-        localStorage.removeItem("cart");
-
-        // ✅ Show SweetAlert before redirect
+        // ✅ Show brief SweetAlert before redirect
         await Swal.fire({
           icon: "success",
           title: "Order Created!",
-          text: `Order #${order.orderNumber} created. You will be redirected to payment.`,
-          timer: 2000,
+          text: `Order #${order.orderNumber} created. Redirecting to payment...`,
+          timer: 1500,
           showConfirmButton: false,
           background: "#F7F3EA",
           iconColor: "#B08D4F",
           timerProgressBar: true,
         });
 
-        // ✅ Redirect to IntaSend
+        // Redirect to IntaSend
         setTimeout(() => {
           window.location.href = paymentData.paymentUrl;
         }, 500);
@@ -376,9 +373,8 @@ const CheckoutPage = () => {
         clearInterval(pollingIntervalRef.current);
         pollingIntervalRef.current = null;
       }
-      setIsPollingActive(false);
+      isPollingActiveRef.current = false;
 
-      // ✅ Better error handling
       let errorMessage = "Checkout failed. Please try again.";
       let errorTitle = "Checkout Failed";
 
@@ -388,14 +384,12 @@ const CheckoutPage = () => {
         errorMessage = error.message;
       }
 
-      // Check if it's an authentication error
       if (error.response?.status === 401 || error.response?.status === 403) {
         errorTitle = "Session Expired";
         errorMessage = "Your session has expired. Please login again.";
         setCheckoutError(errorMessage);
         toast.error(errorMessage);
 
-        // Show SweetAlert for session expiry
         await Swal.fire({
           icon: "warning",
           title: errorTitle,
@@ -412,7 +406,6 @@ const CheckoutPage = () => {
         return;
       }
 
-      // Stock or validation errors
       if (
         errorMessage.includes("stock") ||
         errorMessage.includes("available")
@@ -430,7 +423,6 @@ const CheckoutPage = () => {
       setCheckoutError(errorMessage);
       toast.error(errorMessage);
       setCheckoutStep("idle");
-      // ✅ Reset redirecting flag on error
       setIsRedirecting(false);
     } finally {
       setIsProcessing(false);
@@ -513,10 +505,9 @@ const CheckoutPage = () => {
               }}
             />
           </div>
-          {/* ✅ NEW: Show polling status if active */}
-          {isPollingActive && checkoutStep === "redirecting" && (
-            <p className="text-xs text-[#B08D4F] mt-4">
-              🔄 Payment monitoring active...
+          {checkoutStep === "redirecting" && (
+            <p className="text-xs text-[#B08D4F] mt-4 animate-pulse">
+              ⏳ Monitoring payment status...
             </p>
           )}
         </div>
